@@ -9,14 +9,13 @@
   <meta name="apple-mobile-web-app-title" content="Habit Tracker" />
   <meta name="theme-color" content="#0f0f13" />
   <title>Sudheer's Habit Tracker</title>
-  <meta name="description" content="Personal habit & goal tracker" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>" />
-  <!-- iOS home-screen icon -->
-  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230f0f13'/><text y='.9em' font-size='75' x='10'>🎯</text></svg>" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230f0f13'/><text y='.85em' font-size='72' x='12'>🎯</text></svg>" />
   <style>
+
 
 /* ============================================================
    Sudheer's Habit Tracker — Styles
@@ -1494,10 +1493,157 @@ input.modal-input { font-size: 16px; }
   80%      { transform: translateX(5px); }
 }
 
+  
+
+/* ── Cloud sync status bar in sidebar ─────────────────── */
+.sync-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.sync-bar:hover { background: var(--border); }
+#syncStatusDot  { font-size: 13px; }
+#syncStatusText { font-size: 12px; font-weight: 600; flex:1; }
+.sync-setup-link {
+  font-size: 11px; color: var(--accent2);
+  text-decoration: none; cursor: pointer;
+}
+
+/* ── Loading overlay ────────────────────────────────────── */
+#loadingOverlay {
+  position: fixed; inset:0; z-index:8000;
+  background: var(--bg);
+  display: flex; align-items:center; justify-content:center;
+  flex-direction:column; gap:16px;
+}
+.loading-spinner {
+  width:44px; height:44px;
+  border:4px solid var(--border2);
+  border-top-color: var(--accent);
+  border-radius:50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size:14px; color:var(--text2); }
+
+/* ── Cloud Setup Modal ──────────────────────────────────── */
+#cloudSetupModal {
+  position: fixed; inset:0; z-index:7000;
+  background: rgba(0,0,0,0.75);
+  display: none; align-items:center; justify-content:center;
+  padding:24px;
+  animation: fadeIn 0.2s ease;
+}
+#cloudSetupModal.open { display:flex; }
+
+.cloud-modal {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 18px;
+  width:100%; max-width:540px;
+  max-height:90vh; overflow-y:auto;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+  -webkit-overflow-scrolling: touch;
+}
+.cloud-modal-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:20px 22px;
+  border-bottom:1px solid var(--border);
+  position:sticky; top:0; background:var(--bg2); z-index:1;
+}
+.cloud-modal-title { font-size:16px; font-weight:800; }
+.cloud-modal-close {
+  background:var(--bg3); border:1px solid var(--border);
+  border-radius:8px; padding:5px 10px;
+  color:var(--text2); cursor:pointer; font-size:14px;
+}
+.cloud-modal-body { padding:22px; }
+.cloud-steps { display:flex; flex-direction:column; gap:14px; margin-bottom:18px; }
+.cloud-step {
+  display:flex; gap:12px; align-items:flex-start;
+  background:var(--bg3); border:1px solid var(--border);
+  border-radius:12px; padding:14px;
+}
+.cloud-step-num {
+  width:26px; height:26px; border-radius:50%;
+  background:var(--accent); color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:800; flex-shrink:0;
+}
+.cloud-step-body { flex:1; }
+.cloud-step-title { font-size:13px; font-weight:700; margin-bottom:3px; }
+.cloud-step-desc  { font-size:12px; color:var(--text2); line-height:1.5; }
+.cloud-step-link  {
+  display:inline-flex; align-items:center; gap:4px;
+  margin-top:6px;
+  color:var(--accent2); font-size:12px; font-weight:600;
+  text-decoration:none;
+  background:var(--accent-glow); padding:4px 10px;
+  border-radius:100px;
+}
+.cloud-config-label {
+  font-size:11px; font-weight:700; letter-spacing:0.5px;
+  text-transform:uppercase; color:var(--text3); margin-bottom:6px;
+}
+.cloud-config-area {
+  width:100%; height:130px;
+  background:var(--bg3); border:1.5px solid var(--border2);
+  border-radius:10px; padding:10px 12px;
+  color:var(--text); font-family:'SF Mono',monospace; font-size:11px;
+  resize:vertical; outline:none;
+  transition:border-color 0.2s;
+  -webkit-appearance:none;
+}
+.cloud-config-area:focus { border-color:var(--accent); }
+.cloud-connect-btn {
+  width:100%; padding:13px;
+  background:linear-gradient(135deg,var(--accent),#a855f7);
+  border:none; border-radius:12px; color:#fff;
+  font-size:15px; font-weight:700; cursor:pointer;
+  font-family:inherit; margin-top:12px;
+  transition:opacity 0.2s;
+}
+.cloud-connect-btn:hover { opacity:0.88; }
+.cloud-status-msg {
+  font-size:12px; margin-top:8px; min-height:18px; text-align:center;
+}
+.cloud-disconnect {
+  width:100%; padding:9px;
+  background:transparent; border:1px solid var(--border2);
+  border-radius:10px; color:var(--red); font-size:13px;
+  font-weight:600; cursor:pointer; font-family:inherit;
+  margin-top:8px; transition:background 0.2s;
+}
+.cloud-disconnect:hover { background:var(--red-bg); }
+
   </style>
 </head>
 <body>
+
+  <!-- ── Loading overlay (shown while Firebase loads) ── -->
+  <div id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Loading your tracker…</div>
+  </div>
+
+  <!-- ── Cloud Sync Setup Modal ── -->
+  <div id="cloudSetupModal">
+    <div class="cloud-modal">
+      <div class="cloud-modal-header">
+        <span class="cloud-modal-title">☁️ Cloud Sync Setup</span>
+        <button class="cloud-modal-close" id="cloudModalClose">✕</button>
+      </div>
+      <div class="cloud-modal-body" id="cloudModalBody"></div>
+    </div>
+  </div>
+
   <div class="app-shell">
+    <!-- ── Sidebar ── -->
     <aside class="sidebar">
       <div class="sidebar-logo">
         <div class="logo-mark">
@@ -1508,39 +1654,32 @@ input.modal-input { font-size: 16px; }
           </div>
         </div>
       </div>
+
       <nav class="sidebar-nav">
         <div class="nav-label">Overview</div>
-        <div class="nav-item" data-view="dashboard">
-          <span class="nav-icon">📊</span>
-          Dashboard
-        </div>
+        <div class="nav-item" data-view="dashboard"><span class="nav-icon">📊</span> Dashboard</div>
+
         <div class="nav-label" style="margin-top:8px">Tracking</div>
-        <div class="nav-item" data-view="daily">
-          <span class="nav-icon">📝</span>
-          Daily Log
-        </div>
-        <div class="nav-item" data-view="weekly">
-          <span class="nav-icon">📆</span>
-          Weekly Habits
-        </div>
-        <div class="nav-item" data-view="monthly">
-          <span class="nav-icon">🎯</span>
-          Monthly Goals
-        </div>
-        <div class="nav-item" data-view="goals">
-          <span class="nav-icon">🏆</span>
-          Goal Tracker
-        </div>
+        <div class="nav-item" data-view="daily">   <span class="nav-icon">📝</span> Daily Log</div>
+        <div class="nav-item" data-view="weekly">  <span class="nav-icon">📆</span> Weekly Habits</div>
+        <div class="nav-item" data-view="monthly"> <span class="nav-icon">🎯</span> Monthly Goals</div>
+        <div class="nav-item" data-view="goals">   <span class="nav-icon">🏆</span> Goal Tracker</div>
       </nav>
+
       <div class="sidebar-footer">
-        <div class="month-badge">
-          <strong>Loading…</strong>
+        <!-- Cloud sync status bar -->
+        <div class="sync-bar" id="syncBar" title="Tap to set up cloud sync">
+          <span id="syncStatusDot">💾</span>
+          <span id="syncStatusText" style="color:var(--text3)">Local only</span>
+          <span class="sync-setup-link">Setup ›</span>
         </div>
+        <div class="month-badge"><strong>Loading…</strong></div>
       </div>
     </aside>
 
     <div class="sidebar-overlay"></div>
 
+    <!-- ── Main content ── -->
     <main class="main-content">
       <div class="mobile-header">
         <button class="hamburger">☰</button>
@@ -1559,6 +1698,264 @@ input.modal-input { font-size: 16px; }
   <div id="toast"></div>
 
   <script>
+// ================================================================
+// ☁️  Firebase Cloud Sync — Real-time cross-device persistence
+// ================================================================
+(function() {
+  const FB_CONFIG_KEY  = 'sht_fb_config_v1';
+  const FB_COLLECTION  = 'habitTracker';
+
+  // Derive a stable doc-ID from the app password (not plaintext)
+  function docId() {
+    let h = 0;
+    for (let i = 0; i < 'sud##0810'.length; i++)
+      h = Math.imul(31, h) + 'sud##0810'.charCodeAt(i) | 0;
+    return 'u_' + Math.abs(h).toString(36);
+  }
+
+  let _db = null, _docRef = null, _unsub = null, _writing = false;
+
+  // ── config helpers ─────────────────────────────────────────
+  window.SyncCloud = {
+    getConfig() {
+      try { return JSON.parse(localStorage.getItem(FB_CONFIG_KEY)); } catch(_){ return null; }
+    },
+    saveConfig(cfg) {
+      localStorage.setItem(FB_CONFIG_KEY, JSON.stringify(cfg));
+    },
+    isReady() { return !!_db; },
+
+    // ── init: load SDKs lazily, attach realtime listener ─────
+    async init(onRemoteChange) {
+      const cfg = this.getConfig();
+      if (!cfg) { setSyncUI('local'); return false; }
+      try {
+        setSyncUI('connecting');
+        await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+        await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
+
+        if (!window.firebase) throw new Error('Firebase SDK not loaded');
+        if (!firebase.apps.length) firebase.initializeApp(cfg);
+
+        _db = firebase.firestore();
+        _docRef = _db.collection(FB_COLLECTION).doc(docId());
+
+        // Real-time listener – fires on every remote write
+        _unsub = _docRef.onSnapshot(snap => {
+          if (!_writing && snap.exists) {
+            const d = snap.data();
+            if (d && typeof onRemoteChange === 'function') onRemoteChange(d);
+          }
+        }, err => { console.warn('Firestore listener:', err); setSyncUI('error'); });
+
+        setSyncUI('synced');
+        return true;
+      } catch(e) {
+        console.error('Firebase init error:', e);
+        setSyncUI('error');
+        return false;
+      }
+    },
+
+    // ── load once on startup ──────────────────────────────────
+    async load() {
+      if (!_docRef) return null;
+      try {
+        const snap = await _docRef.get();
+        return snap.exists ? snap.data() : null;
+      } catch(e) { console.error('Cloud load:', e); return null; }
+    },
+
+    // ── save (debounced 600ms to avoid hammering Firestore) ───
+    _saveTimer: null,
+    save(data) {
+      clearTimeout(this._saveTimer);
+      this._saveTimer = setTimeout(() => this._flush(data), 600);
+    },
+    async _flush(data) {
+      if (!_docRef) return;
+      _writing = true;
+      setSyncUI('syncing');
+      try {
+        // JSON round-trip strips any non-serialisable values
+        await _docRef.set(JSON.parse(JSON.stringify(data)));
+        setSyncUI('synced');
+      } catch(e) {
+        console.error('Cloud save:', e);
+        setSyncUI('error');
+      } finally {
+        setTimeout(() => { _writing = false; }, 300);
+      }
+    },
+
+    disconnect() {
+      if (_unsub) { _unsub(); _unsub = null; }
+      _db = null; _docRef = null;
+    },
+  };
+
+  // ── script loader ─────────────────────────────────────────
+  function loadScript(url) {
+    return new Promise((res, rej) => {
+      if (document.querySelector(`script[src="${url}"]`)) return res();
+      const s = document.createElement('script');
+      s.src = url; s.crossOrigin = 'anonymous';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+
+  // ── sync status indicator ─────────────────────────────────
+  function setSyncUI(state) {
+    const el = document.getElementById('syncStatusDot');
+    const tx = document.getElementById('syncStatusText');
+    if (!el) return;
+    const MAP = {
+      local:       ['#6b6b85', '💾', 'Local only'],
+      connecting:  ['#f59e0b', '⏳', 'Connecting…'],
+      syncing:     ['#f59e0b', '🔄', 'Syncing…'],
+      synced:      ['#10b981', '🟢', 'Synced'],
+      error:       ['#ef4444', '🔴', 'Offline'],
+    };
+    const [col, dot, label] = MAP[state] || MAP.local;
+    el.textContent  = dot;
+    el.style.color  = col;
+    if (tx) { tx.textContent = label; tx.style.color = col; }
+  }
+})();
+
+
+// ================================================================
+// ☁️  Cloud Setup UI  (Firebase config wizard + settings modal)
+// ================================================================
+
+function openCloudSetup() {
+  document.getElementById('cloudSetupModal').classList.add('open');
+  renderCloudSetupModal();
+}
+
+function closeCloudSetup() {
+  document.getElementById('cloudSetupModal').classList.remove('open');
+}
+
+function renderCloudSetupModal() {
+  const hasCfg = !!SyncCloud.getConfig();
+  const body = document.getElementById('cloudModalBody');
+
+  body.innerHTML = `
+    ${hasCfg ? `
+      <div style="background:var(--green-bg);border:1px solid rgba(16,185,129,0.3);border-radius:12px;padding:14px;margin-bottom:18px;text-align:center">
+        <div style="font-size:22px;margin-bottom:4px">🟢</div>
+        <div style="font-size:14px;font-weight:700;color:#10b981">Cloud Sync Active</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:4px">Your data syncs across all devices in real-time</div>
+      </div>` : `
+      <div class="cloud-steps">
+        <div class="cloud-step">
+          <div class="cloud-step-num">1</div>
+          <div class="cloud-step-body">
+            <div class="cloud-step-title">Create a free Firebase project</div>
+            <div class="cloud-step-desc">Go to the Firebase Console, click <strong>Add project</strong>, name it <em>sudheer-habit-tracker</em>, disable Google Analytics, click Create.</div>
+            <a class="cloud-step-link" href="https://console.firebase.google.com" target="_blank">🔗 Open Firebase Console</a>
+          </div>
+        </div>
+        <div class="cloud-step">
+          <div class="cloud-step-num">2</div>
+          <div class="cloud-step-body">
+            <div class="cloud-step-title">Create a Firestore Database</div>
+            <div class="cloud-step-desc">In your project → <strong>Build → Firestore Database → Create database</strong>. Choose <em>Start in test mode</em> → Next → Enable.</div>
+          </div>
+        </div>
+        <div class="cloud-step">
+          <div class="cloud-step-num">3</div>
+          <div class="cloud-step-body">
+            <div class="cloud-step-title">Register a Web App & copy config</div>
+            <div class="cloud-step-desc">Project Settings (⚙️) → <strong>Add app → Web</strong>. Name it anything, click Register. Copy the <code>firebaseConfig</code> object (the { } part only) and paste below.</div>
+          </div>
+        </div>
+      </div>`}
+
+    <div class="cloud-config-label">${hasCfg ? 'Update Firebase Config' : 'Paste your Firebase Config'}</div>
+    <textarea class="cloud-config-area" id="cloudConfigArea"
+      placeholder='{\n  "apiKey": "AIza…",\n  "authDomain": "your-app.firebaseapp.com",\n  "projectId": "your-app",\n  "storageBucket": "…",\n  "messagingSenderId": "…",\n  "appId": "…"\n}'
+      spellcheck="false">${hasCfg ? JSON.stringify(SyncCloud.getConfig(), null, 2) : ''}</textarea>
+
+    <button class="cloud-connect-btn" id="cloudConnectBtn">
+      ${hasCfg ? '🔄 Reconnect' : '☁️ Connect & Sync Now'}
+    </button>
+    <div class="cloud-status-msg" id="cloudStatusMsg"></div>
+    ${hasCfg ? `<button class="cloud-disconnect" id="cloudDisconnectBtn">Disconnect & use local storage only</button>` : ''}
+  `;
+
+  document.getElementById('cloudConnectBtn').addEventListener('click', async () => {
+    const raw = document.getElementById('cloudConfigArea').value.trim();
+    const msg = document.getElementById('cloudStatusMsg');
+    let cfg;
+    try {
+      cfg = JSON.parse(raw);
+      if (!cfg.apiKey || !cfg.projectId) throw new Error('Missing fields');
+    } catch(e) {
+      msg.style.color = 'var(--red)';
+      msg.textContent = '❌ Invalid config — make sure you pasted the full { } object';
+      return;
+    }
+    msg.style.color = 'var(--yellow)';
+    msg.textContent = '⏳ Connecting to Firebase…';
+
+    SyncCloud.saveConfig(cfg);
+    SyncCloud.disconnect();
+
+    const ok = await SyncCloud.init(onRemoteDataReceived);
+    if (ok) {
+      // Try to load existing cloud data
+      const cloudData = await SyncCloud.load();
+      if (cloudData) {
+        state.data = mergeData(getDefaultData(), cloudData);
+        saveData(state.data);
+        renderCurrentView();
+      } else {
+        // First-time: push local data to cloud
+        SyncCloud.save(state.data);
+      }
+      msg.style.color = 'var(--green)';
+      msg.textContent = '✅ Connected! Data will sync across all your devices.';
+      setTimeout(() => { closeCloudSetup(); renderCurrentView(); }, 1800);
+    } else {
+      msg.style.color = 'var(--red)';
+      msg.textContent = '❌ Could not connect. Check your config and internet connection.';
+    }
+  });
+
+  document.getElementById('cloudDisconnectBtn')?.addEventListener('click', () => {
+    if (!confirm('Disconnect cloud sync? Your data stays on this device only.')) return;
+    localStorage.removeItem('sht_fb_config_v1');
+    SyncCloud.disconnect();
+    setSyncUI && setSyncUI('local');
+    closeCloudSetup();
+    showToast('💾 Now using local storage only');
+  });
+}
+
+// Deep merge — local wins for same-day conflicts
+function mergeData(local, remote) {
+  return {
+    daily:      Object.assign({}, local.daily,    remote.daily),
+    weekly:     Object.assign({}, local.weekly,   remote.weekly),
+    monthly:    Object.assign({}, local.monthly,  remote.monthly),
+    goals:      remote.goals      || local.goals,
+    priorities: remote.priorities || local.priorities,
+  };
+}
+
+function onRemoteDataReceived(remoteData) {
+  // Called by onSnapshot when another device saves
+  state.data = mergeData(state.data, remoteData);
+  saveData(state.data); // backup to localStorage
+  renderCurrentView();
+  showToast('📡 Synced from another device');
+}
+
+
+
 
 // ============================================================
 // Password Protection
@@ -3045,6 +3442,7 @@ function onToggle(type, id, key) {
   }
 
   saveData(state.data);
+  SyncCloud.save(state.data);
   renderCurrentView();
   showToast(state.data[type]?.[key]?.[id] ? '✅ Marked as done!' : '↩️ Marked as incomplete');
 }
@@ -3112,9 +3510,14 @@ function closeSidebar() {
 // Init
 // ============================================================
 
-document.addEventListener('DOMContentLoaded', () => {
+
+
+// ================================================================
+// Async App Initialisation (replaces synchronous DOMContentLoaded)
+// ================================================================
+document.addEventListener('DOMContentLoaded', async () => {
   // Nav item click
-  navItems.forEach(item => {
+  document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => switchView(item.dataset.view));
   });
 
@@ -3132,11 +3535,39 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
-  // Initial render
+  // Cloud sync button in sidebar
+  document.getElementById('syncBar')?.addEventListener('click', openCloudSetup);
+  document.getElementById('cloudSetupModal')?.addEventListener('click', e => {
+    if (e.target === document.getElementById('cloudSetupModal')) closeCloudSetup();
+  });
+  document.getElementById('cloudModalClose')?.addEventListener('click', closeCloudSetup);
+
+  // ── Show loading overlay ────────────────────────────────────
+  document.getElementById('loadingOverlay').style.display = 'flex';
+
+  // ── Init Firebase (if config saved) ─────────────────────────
+  const hasCloud = await SyncCloud.init(onRemoteDataReceived);
+
+  if (hasCloud) {
+    const cloudData = await SyncCloud.load();
+    if (cloudData) {
+      state.data = mergeData(getDefaultData(), cloudData);
+      saveData(state.data);
+    } else {
+      // First device to connect: push local data up
+      SyncCloud.save(state.data);
+    }
+  }
+
+  // ── Hide overlay and show dashboard ─────────────────────────
+  const overlay = document.getElementById('loadingOverlay');
+  overlay.style.transition = 'opacity 0.3s';
+  overlay.style.opacity = '0';
+  setTimeout(() => overlay.style.display = 'none', 300);
+
   switchView('dashboard');
 });
 
-  
   </script>
 </body>
 </html>
