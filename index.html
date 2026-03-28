@@ -1838,6 +1838,34 @@ function closeCloudSetup() {
   document.getElementById('cloudSetupModal').classList.remove('open');
 }
 
+
+// ── Tolerant Firebase config parser ──────────────────────────
+// Handles: raw JS object literal, missing { }, unquoted keys,
+// trailing commas, const firebaseConfig = { ... }; wrappers
+function parseFirebaseConfig(raw) {
+  if (!raw || !raw.trim()) throw new Error('empty');
+  let s = raw.trim();
+  // Strip: const firebaseConfig = { ... };
+  s = s.replace(/^[\s\S]*?=\s*(\{)/, '$1');
+  // Strip trailing semicolon
+  s = s.replace(/;\s*$/, '').trim();
+  // Ensure opening brace
+  if (!s.startsWith('{')) s = '{' + s;
+  // Ensure closing brace
+  if (!s.endsWith('}')) s = s + '}';
+  // First try strict JSON (keys already quoted)
+  try { return JSON.parse(s); } catch(_) {}
+  // Convert JS object literal → JSON:
+  //   1. Quote unquoted keys:  apiKey: → "apiKey":
+  //   2. Convert single-quoted values → double-quoted
+  //   3. Remove trailing commas before }
+  let j = s
+    .replace(/([{,]\s*)([A-Za-z_$][A-Za-z0-9_$]*)(\s*:)/g, '$1"$2"$3')
+    .replace(/'([^']*)'/g, '"$1"')
+    .replace(/,(\s*\})/g, '$1');
+  return JSON.parse(j);
+}
+
 function renderCloudSetupModal() {
   const hasCfg = !!SyncCloud.getConfig();
   const body = document.getElementById('cloudModalBody');
@@ -1891,11 +1919,11 @@ function renderCloudSetupModal() {
     const msg = document.getElementById('cloudStatusMsg');
     let cfg;
     try {
-      cfg = JSON.parse(raw);
-      if (!cfg.apiKey || !cfg.projectId) throw new Error('Missing fields');
+      cfg = parseFirebaseConfig(raw);
+      if (!cfg || !cfg.apiKey || !cfg.projectId) throw new Error('Missing fields');
     } catch(e) {
       msg.style.color = 'var(--red)';
-      msg.textContent = '❌ Invalid config — make sure you pasted the full { } object';
+      msg.textContent = '❌ Could not read config. Paste exactly what Firebase shows — the whole block including any curly braces.';
       return;
     }
     msg.style.color = 'var(--yellow)';
