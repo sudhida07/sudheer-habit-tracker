@@ -13,19 +13,21 @@ cd "$SCRIPT_DIR"
 
 echo -e "${CYAN}🎯  Deploying Habit Tracker to Firebase Hosting…${NC}"
 
-# Ensure the Firebase CLI exists
-if ! command -v firebase >/dev/null 2>&1; then
-  echo -e "${YELLOW}Firebase CLI not found. Install it with:${NC}"
-  echo "  npm install -g firebase-tools"
-  exit 1
+# Use a global 'firebase' if present, otherwise fall back to npx
+# (avoids needing a global install / sudo).
+if command -v firebase >/dev/null 2>&1; then
+  FIREBASE="firebase"
+else
+  echo -e "${YELLOW}Firebase CLI not installed globally — using 'npx firebase-tools'.${NC}"
+  FIREBASE="npx -y firebase-tools"
 fi
 
 # Ensure we are logged in
-if ! firebase projects:list >/dev/null 2>&1; then
-  echo -e "${YELLOW}Not logged in. Running 'firebase login'…${NC}"
-  firebase login
+if ! $FIREBASE projects:list >/dev/null 2>&1; then
+  echo -e "${YELLOW}Not logged in. Running login…${NC}"
+  $FIREBASE login
 fi
 
-firebase deploy --only hosting --project sudheer-habit-tracker
+$FIREBASE deploy --only hosting --project sudheer-habit-tracker
 
 echo -e "${GREEN}✅ Live at: https://sudheer-habit-tracker.web.app${NC}"
