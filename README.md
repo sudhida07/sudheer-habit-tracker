@@ -18,6 +18,33 @@ python3 -m http.server 7777
 # Open http://localhost:7777
 ```
 
+## Deploy to Firebase Hosting
+
+This is a static site, hosted on Firebase project **`sudheer-habit-tracker`**
+(live at https://sudheer-habit-tracker.web.app).
+
+### Option A — Deploy from your machine
+
+```bash
+npm install -g firebase-tools   # one time
+firebase login                  # one time
+./firebase-deploy.sh            # deploys --only hosting
+```
+
+(Or directly: `firebase deploy --only hosting --project sudheer-habit-tracker`.)
+
+### Option B — Auto-deploy via GitHub Actions
+
+A workflow at `.github/workflows/firebase-hosting.yml` deploys on every push to
+`main`. To enable it, add a repo secret `FIREBASE_SERVICE_ACCOUNT`:
+
+1. Firebase Console → Project Settings → Service accounts → **Generate new private key**
+2. GitHub → Settings → Secrets and variables → Actions → **New repository secret**
+   named `FIREBASE_SERVICE_ACCOUNT`, paste the JSON.
+
+Config lives in `firebase.json` (serves repo root) and `.firebaserc`
+(default project `sudheer-habit-tracker`).
+
 ## Tech Stack
 
 - Vanilla JS (ES Modules)
