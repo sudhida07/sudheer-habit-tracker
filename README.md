@@ -1,26 +1,34 @@
-# Sudheer's Habit Tracker v1.0
+# Family Hub — Unified Family Dashboard
 
-A beautiful, fully offline personal habit tracker — no dependencies, no build step required.
+One single application that replaces the separate AI trading, habit tracker, expense/EMI, and kids-zone apps. Built from the Family Dashboard design (claude.ai/design), it runs fully in the browser with no build step.
 
-## Features
+## Modules
 
-- **Dashboard** — Monthly % overview, daily progress bar chart, color-coded calendar heatmap, top consistent habits
-- **Daily Log** — 22 habits organized into 6 time blocks (Morning Routine, Productivity Hours, Lunch Break, Afternoon Productivity, Evening Activities, Relaxation Time)
-- **Weekly Habits** — 10 recurring weekly habits with weekly navigation
-- **Monthly Goals** — 12 monthly goals grouped by category (Bills, Maintenance, Health, Admin, Finance, Review)
-- **Persistence** — All data saved in localStorage
-- **Responsive** — Works on mobile and desktop
+- **Dashboard** — family-at-a-glance: habits today, family portfolio value, next payment due, member list
+- **Portfolio (AI Trading)** — US live holdings, Equity P&L, After-Tax view, Family Assets; holdings upload, manual Indian-stock entry, AI-powered growth card, wallet cash & risk-capital settings
+- **Habits (HabitPro)** — Dashboard, Daily Log (time blocks), Weekly, Monthly Goals, and Vision tabs with streaks and a calendar heatmap — per family member
+- **Expenses & EMI (EMI Command Center)** — Dashboard, EMI Tracker, Budget, and Summary tabs; EMI calculator, 12-month burden chart, income/expense/SIP tracking
+- **Kids Zone** — games hub for child profiles, gated by screen-time limits
+- **Screen Time** — parental controls: daily limits, Kids Zone toggle, bedtime lock, per-kid usage
+- **Settings** — profile name/avatar management, sign out
 
-## Run Locally
+## Families & sign-in
+
+Three households (Bhat, Rao, Shanbhag). Parents sign in with a password; kids tap to enter and land in the Kids Zone. Auth is a prototype simulating Firebase sessions.
+
+## Run locally
 
 ```bash
 python3 -m http.server 7777
 # Open http://localhost:7777
 ```
 
-## Tech Stack
+## Tech stack
 
-- Vanilla JS (ES Modules)
-- Custom CSS (no frameworks)
-- SVG charts (no charting library)
-- localStorage for data persistence
+- React 18 (UMD) + Babel Standalone, vendored in `vendor/` — no CDN dependency, no build step
+- Custom CSS (`family-styles.css`), inline SVG charts
+- All data persisted in localStorage (`family-dashboard-v2*` keys)
+
+## Legacy
+
+The previous standalone habit tracker is kept at `habit-tracker-legacy.html` (with Firebase sync) and `habit-tracker.html`.
