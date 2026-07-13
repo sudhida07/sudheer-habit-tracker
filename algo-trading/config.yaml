@@ -1,0 +1,44 @@
+# ============================================================
+# Fyers Algo Trading — configuration
+# ============================================================
+
+# "paper" = simulated orders with real market data (SAFE, default)
+# "live"  = real money orders on your Fyers account
+mode: paper
+
+capital: 5000                # trading capital in INR
+
+targets:
+  daily_profit_target_pct: 15   # stop trading for the day once total P&L hits +15% of capital
+                                # NOTE: 15%/day is an aspiration, not an expectation — see README
+  per_trade_target_pct: 1.0     # take-profit per trade, % move of the stock price
+  per_trade_stoploss_pct: 0.5   # stop-loss per trade, % move of the stock price
+
+risk:
+  max_daily_loss_pct: 4         # halt all trading if the day's loss reaches 4% of capital
+  risk_per_trade_pct: 1.5       # max capital risked per trade (used for position sizing)
+  max_open_positions: 2
+  max_trades_per_day: 12
+
+# Liquid NSE stocks the engine scans (Fyers symbol format)
+watchlist:
+  - NSE:SBIN-EQ
+  - NSE:TATASTEEL-EQ
+  - NSE:ONGC-EQ
+  - NSE:NTPC-EQ
+  - NSE:COALINDIA-EQ
+  - NSE:GAIL-EQ
+  - NSE:BPCL-EQ
+  - NSE:IOC-EQ
+
+session:
+  start: "09:20"      # don't trade the opening volatility
+  end: "15:00"        # no new entries after this
+  square_off: "15:12" # force-close everything before broker auto square-off
+  scan_interval_sec: 60
+  candle_resolution: "5"   # 5-minute candles
+
+claude:
+  enabled: true            # ask Claude to vet every signal before placing the trade
+  model: claude-opus-4-8
+  min_confidence: 0.6      # skip trades Claude scores below this
