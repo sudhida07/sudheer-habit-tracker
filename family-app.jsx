@@ -1,127 +1,251 @@
 /* global React */
 // Family Dashboard — auth screen + app shell
-const { useState: useStateFA } = React;
+const { useState: useStateFA, useEffect: useEffectFA } = React;
 
 // ---------- Auth ----------
-function FamilyAuth() {
+// With Firebase configured: real Google / email+password sign-in first, then
+// profile selection (parents link their profile to their Firebase account;
+// kids tap to enter once the device is authenticated).
+// Without Firebase config: Demo mode — the original prototype flow.
+function FamilyAuth({ fb }) {
   const fd = window.useFD();
   const [famId, setFamId] = useStateFA(null);
-  const [pending, setPending] = useStateFA(null); // adult awaiting password
+  const [pending, setPending] = useStateFA(null); // demo mode: adult awaiting password
   const [pw, setPw] = useStateFA("");
   const [err, setErr] = useStateFA(false);
+  const [showSetup, setShowSetup] = useStateFA(false);
   const fam = fd.families.find(f => f.familyId === famId);
   const members = famId ? fd.allUsers.filter(u => u.familyId === famId) : [];
 
-  const pick = (u) => {
+  const fbOn = !!fb.cfg;
+  const fbEmail = fb.fbUser && fb.fbUser.email ? fb.fbUser.email.toLowerCase() : null;
+  const matched = fbEmail ? fd.allUsers.find(u => (u.authEmail || "").toLowerCase() === fbEmail) : null;
+
+  const pickDemo = (u) => {
     if (u.role === "child") { fd.signIn(u.uid); return; } // kids: tap to enter
     setPending(u); setPw(""); setErr(false);
   };
-  const submitPw = () => {
+  const submitDemoPw = () => {
     if (pw.trim().length >= 4) fd.signIn(pending.uid);
     else setErr(true);
+  };
+
+  const pickFirebase = (u) => {
+    if (u.role === "child") { fd.signIn(u.uid); return; } // device already authenticated
+    const linked = (u.authEmail || "").toLowerCase();
+    if (!linked) { fd.updateUser(u.uid, { authEmail: fb.fbUser.email }); fd.signIn(u.uid); return; }
+    if (linked === fbEmail) { fd.signIn(u.uid); return; }
+    // linked to a different account — locked (handled in render)
+  };
+
+  const familyList = (onPick, label) => (
+    <>
+      <div className="fd-label" style={{ marginBottom: 10 }}>{label}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {fd.families.map(f => {
+          const count = fd.allUsers.filter(u => u.familyId === f.familyId).length;
+          return (
+            <button key={f.familyId} onClick={() => onPick(f.familyId)} style={{
+              display: "flex", alignItems: "center", gap: 12,
+              padding: "12px 14px", borderRadius: 12,
+              border: "1px solid var(--fd-line)", background: "var(--fd-surface)",
+              transition: "all 130ms var(--fd-ease)", width: "100%", textAlign: "left",
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = f.color; e.currentTarget.style.background = f.color + "0D"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--fd-line)"; e.currentTarget.style.background = "var(--fd-surface)"; }}>
+              <span style={{ fontSize: 26 }}>{f.emoji}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 14.5 }}>{f.name}</div>
+                <div style={{ fontSize: 11.5, color: "var(--fd-ink-3)", fontWeight: 600 }}>{count} members</div>
+              </div>
+              <window.Icons.ChevronRight size={15} />
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+
+  const card = () => {
+    if (showSetup) return <window.FBConfigSetup fb={fb} onClose={() => setShowSetup(false)} />;
+
+    if (fbOn && fb.status === "loading") {
+      return (
+        <div style={{ textAlign: "center", padding: "28px 0" }}>
+          <div style={{ fontSize: 34, marginBottom: 10 }}>🔐</div>
+          <div style={{ fontWeight: 800, fontSize: 16 }}>Connecting to Firebase…</div>
+          <div style={{ fontSize: 12, color: "var(--fd-ink-3)", fontWeight: 600, marginTop: 4 }}>Checking your sign-in session</div>
+        </div>
+      );
+    }
+
+    if (fbOn && fb.status === "error") {
+      return (
+        <>
+          <div style={{ textAlign: "center", marginBottom: 18 }}>
+            <div style={{ fontSize: 34, marginBottom: 8 }}>⚠️</div>
+            <div style={{ fontWeight: 800, fontSize: 16 }}>Firebase couldn't start</div>
+            <div style={{ fontSize: 12.5, color: "var(--fd-red)", fontWeight: 600, marginTop: 8 }}>{fb.error}</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button className="fd-btn fd-btn-primary" style={{ justifyContent: "center", height: 40 }} onClick={() => setShowSetup(true)}>Change Firebase config</button>
+            <button className="fd-btn" style={{ justifyContent: "center", height: 40 }} onClick={() => location.reload()}>Retry</button>
+            <button className="fd-btn fd-btn-ghost" style={{ justifyContent: "center" }} onClick={fb.clearConfig}>Continue in demo mode</button>
+          </div>
+        </>
+      );
+    }
+
+    if (fbOn && !fb.fbUser) {
+      return (
+        <>
+          <window.FBLoginCard fb={fb} />
+          <div style={{ fontSize: 11, color: "var(--fd-ink-3)", textAlign: "center", marginTop: 16 }}>
+            Kids: ask a parent to sign in on this device first.
+          </div>
+        </>
+      );
+    }
+
+    if (fbOn && fb.fbUser) {
+      // Signed in with Firebase → pick / link a profile
+      return (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+            {famId ? (
+              <button className="fd-btn fd-btn-ghost" style={{ padding: "0 8px" }} onClick={() => setFamId(null)}><window.Icons.ChevronLeft size={15} /></button>
+            ) : (
+              <div style={{ fontSize: 24 }}>🏠</div>
+            )}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 16 }}>{famId ? fam.name : "Welcome back"}</div>
+              <div style={{ fontSize: 11.5, color: "var(--fd-ink-3)", fontWeight: 600 }}>{fb.fbUser.email}</div>
+            </div>
+            <button className="fd-btn fd-btn-ghost" style={{ fontSize: 11.5 }} onClick={fb.fbSignOut}>Switch account</button>
+          </div>
+
+          {!famId && matched && (
+            <button className="fd-btn fd-btn-primary" style={{ width: "100%", justifyContent: "center", height: 44, marginBottom: 14 }}
+              onClick={() => fd.signIn(matched.uid)}>
+              Continue as {matched.name}
+            </button>
+          )}
+
+          {!famId ? (
+            familyList(setFamId, matched ? "Or open another profile" : "Choose your family")
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {members.map(u => {
+                const linked = (u.authEmail || "").toLowerCase();
+                const lockedByOther = u.role === "parent" && !!linked && linked !== fbEmail;
+                const sub = u.role === "child" ? "tap to enter"
+                  : linked === fbEmail ? "your profile"
+                  : lockedByOther ? "linked to " + u.authEmail
+                  : "tap to link with " + fb.fbUser.email;
+                return (
+                  <button key={u.uid} disabled={lockedByOther} onClick={() => pickFirebase(u)} style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    padding: "10px 14px", borderRadius: 12,
+                    border: "1px solid var(--fd-line)", background: "var(--fd-surface)",
+                    transition: "all 130ms var(--fd-ease)", width: "100%", textAlign: "left",
+                    opacity: lockedByOther ? 0.45 : 1, cursor: lockedByOther ? "not-allowed" : "pointer",
+                  }}
+                    onMouseEnter={e => { if (!lockedByOther) { e.currentTarget.style.borderColor = u.color; e.currentTarget.style.background = u.color + "0D"; } }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--fd-line)"; e.currentTarget.style.background = "var(--fd-surface)"; }}>
+                    <window.FDAvatar user={u} size={40} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{u.name}{u.age ? <span style={{ color: "var(--fd-ink-3)", fontWeight: 600 }}> · {u.age}</span> : null}</div>
+                      <div style={{ fontSize: 11.5, color: "var(--fd-ink-3)", fontWeight: 600 }}>{u.relation} · {sub}</div>
+                    </div>
+                    {lockedByOther ? <span style={{ fontSize: 13 }}>🔒</span> : <window.Icons.ChevronRight size={15} />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </>
+      );
+    }
+
+    // ---------- Demo mode (no Firebase config) ----------
+    if (!famId) {
+      return (
+        <>
+          <div style={{ textAlign: "center", marginBottom: 28 }}>
+            <div style={{ fontSize: 40, marginBottom: 10 }}>🏠</div>
+            <h1 style={{ fontSize: 22, fontWeight: 800 }}>Family Hub</h1>
+            <div style={{ fontSize: 13, color: "var(--fd-ink-2)", marginTop: 4 }}>One dashboard, three households</div>
+          </div>
+          {familyList(setFamId, "Choose your family")}
+        </>
+      );
+    }
+    if (pending) {
+      return (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
+            <button className="fd-btn fd-btn-ghost" style={{ padding: "0 8px" }} onClick={() => setPending(null)}><window.Icons.ChevronLeft size={15} /></button>
+            <window.FDAvatar user={pending} size={40} />
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 16 }}>{pending.name}</div>
+              <div style={{ fontSize: 11.5, color: "var(--fd-ink-3)", fontWeight: 600 }}>{pending.email}</div>
+            </div>
+          </div>
+          <div className="fd-label" style={{ marginBottom: 6 }}>Password</div>
+          <input className="fd-input" type="password" autoFocus value={pw}
+            placeholder="Enter your password"
+            onChange={e => { setPw(e.target.value); setErr(false); }}
+            onKeyDown={e => e.key === "Enter" && submitDemoPw()}
+            style={err ? { borderColor: "var(--fd-red)" } : {}} />
+          {err && <div style={{ fontSize: 11.5, color: "var(--fd-red)", fontWeight: 600, marginTop: 6 }}>Password must be at least 4 characters.</div>}
+          <button className="fd-btn fd-btn-primary" style={{ width: "100%", justifyContent: "center", height: 40, marginTop: 14 }} onClick={submitDemoPw}>Sign in</button>
+        </>
+      );
+    }
+    return (
+      <>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
+          <button className="fd-btn fd-btn-ghost" style={{ padding: "0 8px" }} onClick={() => setFamId(null)}><window.Icons.ChevronLeft size={15} /></button>
+          <span style={{ fontSize: 24 }}>{fam.emoji}</span>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 16 }}>{fam.name}</div>
+            <div style={{ fontSize: 11.5, color: "var(--fd-ink-3)", fontWeight: 600 }}>Who's signing in?</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {members.map(u => (
+            <button key={u.uid} onClick={() => pickDemo(u)} style={{
+              display: "flex", alignItems: "center", gap: 12,
+              padding: "10px 14px", borderRadius: 12,
+              border: "1px solid var(--fd-line)", background: "var(--fd-surface)",
+              transition: "all 130ms var(--fd-ease)", width: "100%", textAlign: "left",
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = u.color; e.currentTarget.style.background = u.color + "0D"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--fd-line)"; e.currentTarget.style.background = "var(--fd-surface)"; }}>
+              <window.FDAvatar user={u} size={40} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{u.name}{u.age ? <span style={{ color: "var(--fd-ink-3)", fontWeight: 600 }}> · {u.age}</span> : null}</div>
+                <div style={{ fontSize: 11.5, color: "var(--fd-ink-3)", fontWeight: 600 }}>{u.relation} · {u.role === "parent" ? "password login" : "tap to enter"}</div>
+              </div>
+              <window.Icons.ChevronRight size={15} />
+            </button>
+          ))}
+        </div>
+      </>
+    );
   };
 
   return (
     <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, position: "relative", zIndex: 1 }}>
       <div className="fd-card fd-in" style={{ width: 440, maxWidth: "100%", padding: 32 }}>
-        {!famId ? (
-          <>
-            <div style={{ textAlign: "center", marginBottom: 28 }}>
-              <div style={{ fontSize: 40, marginBottom: 10 }}>🏠</div>
-              <h1 style={{ fontSize: 22, fontWeight: 800 }}>Family Hub</h1>
-              <div style={{ fontSize: 13, color: "var(--fd-ink-2)", marginTop: 4 }}>One dashboard, three households</div>
-            </div>
-            <div className="fd-label" style={{ marginBottom: 10 }}>Choose your family</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {fd.families.map(f => {
-                const count = fd.allUsers.filter(u => u.familyId === f.familyId).length;
-                return (
-                  <button key={f.familyId} onClick={() => setFamId(f.familyId)} style={{
-                    display: "flex", alignItems: "center", gap: 12,
-                    padding: "12px 14px", borderRadius: 12,
-                    border: "1px solid var(--fd-line)", background: "var(--fd-surface)",
-                    transition: "all 130ms var(--fd-ease)", width: "100%", textAlign: "left",
-                  }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = f.color; e.currentTarget.style.background = f.color + "0D"; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--fd-line)"; e.currentTarget.style.background = "var(--fd-surface)"; }}>
-                    <span style={{ fontSize: 26 }}>{f.emoji}</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 800, fontSize: 14.5 }}>{f.name}</div>
-                      <div style={{ fontSize: 11.5, color: "var(--fd-ink-3)", fontWeight: 600 }}>{count} members</div>
-                    </div>
-                    <window.Icons.ChevronRight size={15} />
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        ) : pending ? (
-          <>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
-              <button className="fd-btn fd-btn-ghost" style={{ padding: "0 8px" }} onClick={() => setPending(null)}><window.Icons.ChevronLeft size={15} /></button>
-              <window.FDAvatar user={pending} size={40} />
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 16 }}>{pending.name}</div>
-                <div style={{ fontSize: 11.5, color: "var(--fd-ink-3)", fontWeight: 600 }}>{pending.email}</div>
-              </div>
-            </div>
-            <div className="fd-label" style={{ marginBottom: 6 }}>Password</div>
-            <input className="fd-input" type="password" autoFocus value={pw}
-              placeholder="Enter your password"
-              onChange={e => { setPw(e.target.value); setErr(false); }}
-              onKeyDown={e => e.key === "Enter" && submitPw()}
-              style={err ? { borderColor: "var(--fd-red)" } : {}} />
-            {err && <div style={{ fontSize: 11.5, color: "var(--fd-red)", fontWeight: 600, marginTop: 6 }}>Password must be at least 4 characters.</div>}
-            <button className="fd-btn fd-btn-primary" style={{ width: "100%", justifyContent: "center", height: 40, marginTop: 14 }} onClick={submitPw}>Sign in</button>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "18px 0" }}>
-              <div style={{ flex: 1, height: 1, background: "var(--fd-line)" }} />
-              <span style={{ fontSize: 11, color: "var(--fd-ink-3)", fontWeight: 600 }}>or</span>
-              <div style={{ flex: 1, height: 1, background: "var(--fd-line)" }} />
-            </div>
-            <button className="fd-btn" style={{ width: "100%", justifyContent: "center", height: 40 }} onClick={() => fd.signIn(pending.uid)}>
-              <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-              Continue with Google as {pending.name.split(" ")[0]}
-            </button>
-          </>
-        ) : (
-          <>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
-              <button className="fd-btn fd-btn-ghost" style={{ padding: "0 8px" }} onClick={() => setFamId(null)}><window.Icons.ChevronLeft size={15} /></button>
-              <span style={{ fontSize: 24 }}>{fam.emoji}</span>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 16 }}>{fam.name}</div>
-                <div style={{ fontSize: 11.5, color: "var(--fd-ink-3)", fontWeight: 600 }}>Who's signing in?</div>
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {members.map(u => (
-                <button key={u.uid} onClick={() => pick(u)} style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "10px 14px", borderRadius: 12,
-                  border: "1px solid var(--fd-line)", background: "var(--fd-surface)",
-                  transition: "all 130ms var(--fd-ease)", width: "100%", textAlign: "left",
-                }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = u.color; e.currentTarget.style.background = u.color + "0D"; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--fd-line)"; e.currentTarget.style.background = "var(--fd-surface)"; }}>
-                  <window.FDAvatar user={u} size={40} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{u.name}{u.age ? <span style={{ color: "var(--fd-ink-3)", fontWeight: 600 }}> · {u.age}</span> : null}</div>
-                    <div style={{ fontSize: 11.5, color: "var(--fd-ink-3)", fontWeight: 600 }}>{u.relation} · {u.role === "parent" ? "password login" : "tap to enter"}</div>
-                  </div>
-                  <window.Icons.ChevronRight size={15} />
-                </button>
-              ))}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
-              <div style={{ flex: 1, height: 1, background: "var(--fd-line)" }} />
-              <span style={{ fontSize: 11, color: "var(--fd-ink-3)", fontWeight: 600 }}>parents sign in with their own password · kids just tap</span>
-              <div style={{ flex: 1, height: 1, background: "var(--fd-line)" }} />
-            </div>
-          </>
+        {card()}
+        {!showSetup && (
+          <div style={{ fontSize: 11, color: "var(--fd-ink-3)", textAlign: "center", marginTop: 14 }}>
+            {fbOn
+              ? "Secured by Firebase Authentication"
+              : <>Demo mode — no real login. <button style={{ color: "var(--fd-cyan)", fontWeight: 700 }} onClick={() => setShowSetup(true)}>Set up Firebase login</button></>}
+          </div>
         )}
-        <div style={{ fontSize: 11, color: "var(--fd-ink-3)", textAlign: "center", marginTop: 14 }}>
-          Prototype — profiles simulate Firebase Auth sessions
-        </div>
       </div>
     </div>
   );
@@ -203,8 +327,18 @@ function FamilyShell() {
 
 function FamilyApp() {
   const fd = window.useFD();
+  const fb = window.useFirebaseAuth();
+
+  // With Firebase active, a profile session is only valid while a Firebase
+  // user is signed in — signing out of Firebase closes the profile too.
+  useEffectFA(() => {
+    if (fb.cfg && fb.status === "ready" && !fb.fbUser && fd.user) fd.signOut();
+  }, [fb.cfg, fb.status, fb.fbUser, fd.user]);
+
+  const authed = fd.user && !(fb.cfg && (fb.status !== "ready" || !fb.fbUser));
+
   return (
-    <>
+    <window.FBCtx.Provider value={fb}>
       <div className="fd-grid-bg"></div>
       <window.FDSky />
       <window.FDScene />
@@ -214,8 +348,8 @@ function FamilyApp() {
         <div className="fd-orb fd-orb-3"></div>
         <div className="fd-orb fd-orb-4"></div>
       </div>
-      {fd.user ? <FamilyShell /> : <FamilyAuth />}
-    </>
+      {authed ? <FamilyShell /> : <FamilyAuth fb={fb} />}
+    </window.FBCtx.Provider>
   );
 }
 

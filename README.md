@@ -14,7 +14,13 @@ One single application that replaces the separate AI trading, habit tracker, exp
 
 ## Families & sign-in
 
-Three households (Bhat, Rao, Shanbhag). Parents sign in with a password; kids tap to enter and land in the Kids Zone. Auth is a prototype simulating Firebase sessions.
+Three households (Bhat, Rao, Shanbhag) with real **Firebase Authentication**:
+
+- **Google sign-in** and **email/password** (create account, sign in, password reset) via the Firebase Auth SDK
+- One-time setup: Settings → Login & security → *Set up Firebase login* → paste your `firebaseConfig` from the Firebase Console (Authentication → enable Email/Password and Google providers). The config is stored per device.
+- After signing in, parents link their Firebase account to their family profile (a profile linked to another account is locked). Kids don't sign in — they tap to enter once a parent has authenticated the device, and land in the Kids Zone.
+- Signing out of Firebase closes the profile session too.
+- **Demo mode**: with no Firebase config saved, the app falls back to the original prototype auth (tap to enter / any 4+ char password) — handy for trying it out.
 
 ## Run locally
 

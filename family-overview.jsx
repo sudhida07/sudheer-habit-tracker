@@ -309,6 +309,8 @@ function FamilyProfile() {
         </div>
       </div>
 
+      {window.FBAccountCard && <window.FBAccountCard />}
+
       <button className="fd-btn" style={{ alignSelf: "flex-start" }} onClick={fd.signOut}>Sign out</button>
     </div>
   );
