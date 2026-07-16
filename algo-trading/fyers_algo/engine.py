@@ -13,7 +13,9 @@ from . import store
 from .broker import FyersBroker, PaperBroker
 from .claude_analyst import ClaudeAnalyst
 from .data import get_candles, get_quote
+from .firebase_sync import make_sync
 from .risk import RiskManager
+from .state import build_state
 from .strategy import generate_signal
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -47,6 +49,7 @@ class Engine:
         self.t_squareoff = _parse_t(s.get("square_off", "15:12"))
         self.interval = int(s.get("scan_interval_sec", 60))
         self.resolution = s.get("candle_resolution", "5")
+        self.firebase = make_sync(settings)
 
     # ---------- session helpers ----------
 
@@ -168,6 +171,8 @@ class Engine:
                     store.set_status(engine="waiting (market closed)",
                                      mode=self.settings.mode,
                                      updated=self.now().isoformat(timespec="seconds"))
+                    if self.firebase:
+                        self.firebase.publish(build_state(self.settings))
                     time.sleep(60)
                     continue
 
@@ -191,6 +196,8 @@ class Engine:
                     max_daily_loss=self.risk.max_daily_loss,
                     updated=self.now().isoformat(timespec="seconds"),
                 )
+                if self.firebase:
+                    self.firebase.publish(build_state(self.settings))
             except Exception:
                 log.exception("Engine cycle failed; retrying next cycle")
             time.sleep(self.interval)

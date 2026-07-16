@@ -1,0 +1,17 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // The engine writes via the Admin SDK (bypasses rules).
+    // The hosted dashboard only needs to READ the single state document.
+    // NOTE: this makes your P&L readable by anyone who has your app URL.
+    // To lock it down, enable Firebase Auth and change the condition to
+    //   allow read: if request.auth != null && request.auth.uid == "YOUR_UID";
+    match /algo/dashboard {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

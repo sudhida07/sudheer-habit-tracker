@@ -4,3 +4,6 @@ data/
 __pycache__/
 *.pyc
 *.log
+serviceAccount.json
+firebase/.firebaserc
+firebase/.firebase/

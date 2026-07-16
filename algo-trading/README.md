@@ -73,6 +73,45 @@ Or run pieces separately: `python run.py trade` / `python run.py dashboard`.
 | `claude.enabled` | true | Claude vets every signal |
 | `claude.min_confidence` | 0.6 | reject trades Claude scores below this |
 
+## Host the dashboard on Firebase (view from anywhere)
+
+Firebase can't run the trading engine (it's a long-running Python process that
+needs your daily Fyers login) — the engine stays on your computer. What Firebase
+*can* do is host the dashboard: the engine pushes its state to Firestore after
+every cycle, and a Firebase-hosted page shows it live on any device.
+
+```
+your computer                          Google Firebase
+┌──────────────────────┐   writes    ┌───────────────┐   live reads   ┌──────────────┐
+│ engine (run.py all)  │ ──────────▶ │   Firestore    │ ─────────────▶ │ dashboard on │
+│ + local dashboard    │  each cycle │ algo/dashboard │   onSnapshot   │ any device   │
+└──────────────────────┘             └───────────────┘                └──────────────┘
+```
+
+One-time setup:
+
+1. Create a project at [console.firebase.google.com](https://console.firebase.google.com)
+   and enable **Cloud Firestore** (production mode is fine — rules are deployed below).
+2. Project settings → Service accounts → **Generate new private key** — save the
+   file as `algo-trading/serviceAccount.json` (it's git-ignored).
+3. In `config.yaml` set `firebase.enabled: true`.
+4. Install the Firebase CLI and deploy the dashboard + security rules:
+   ```bash
+   npm install -g firebase-tools
+   cd algo-trading/firebase
+   firebase login
+   firebase use --add        # pick your project
+   firebase deploy
+   ```
+
+Your dashboard is now at `https://<your-project>.web.app` and updates in real
+time whenever the engine is running.
+
+**Privacy note:** the deployed rules make the single state document readable by
+anyone who has your URL (writes are blocked; the engine writes via the Admin
+SDK). If you want it private, enable Firebase Auth and tighten the rule in
+`firebase/firestore.rules` — the file has a comment showing exactly what to change.
+
 ## Going live (only after successful paper trading)
 
 1. Set `mode: live` in `config.yaml`.

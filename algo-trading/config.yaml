@@ -42,3 +42,7 @@ claude:
   enabled: true            # ask Claude to vet every signal before placing the trade
   model: claude-opus-4-8
   min_confidence: 0.6      # skip trades Claude scores below this
+
+firebase:
+  enabled: false           # push live state to Firestore for the hosted dashboard
+  service_account: serviceAccount.json   # Firebase service-account key (git-ignored)
