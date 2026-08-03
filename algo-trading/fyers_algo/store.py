@@ -10,6 +10,23 @@ from .config import DATA_DIR
 DB_PATH = DATA_DIR / "trading.db"
 _lock = threading.Lock()
 
+
+def use_db(path):
+    """Point the store at a different database file (used by demo mode)."""
+    global DB_PATH
+    DB_PATH = path
+
+
+def reset():
+    """Drop every table and recreate the schema — demo mode only."""
+    with _lock, _conn() as c:
+        c.executescript(
+            "DROP TABLE IF EXISTS trades;"
+            "DROP TABLE IF EXISTS equity;"
+            "DROP TABLE IF EXISTS status;"
+        )
+    init_db()
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS trades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,12 +68,13 @@ def init_db():
         c.executescript(SCHEMA)
 
 
-def record_entry(symbol, side, qty, price, stoploss, target, mode, claude_reasoning="") -> int:
+def record_entry(symbol, side, qty, price, stoploss, target, mode, claude_reasoning="",
+                 ts=None) -> int:
     with _lock, _conn() as c:
         cur = c.execute(
             "INSERT INTO trades (ts, symbol, side, qty, entry_price, stoploss, target, mode, claude_reasoning)"
             " VALUES (?,?,?,?,?,?,?,?,?)",
-            (datetime.now().isoformat(timespec="seconds"), symbol, side, qty, price,
+            (ts or datetime.now().isoformat(timespec="seconds"), symbol, side, qty, price,
              stoploss, target, mode, claude_reasoning),
         )
         return cur.lastrowid
@@ -91,8 +109,8 @@ def day_realized_pnl() -> float:
         return float(row["p"])
 
 
-def snapshot_equity(realized, unrealized):
-    now = datetime.now()
+def snapshot_equity(realized, unrealized, ts=None):
+    now = ts or datetime.now()
     with _lock, _conn() as c:
         c.execute("INSERT INTO equity VALUES (?,?,?,?)",
                   (now.isoformat(timespec="seconds"), now.date().isoformat(),

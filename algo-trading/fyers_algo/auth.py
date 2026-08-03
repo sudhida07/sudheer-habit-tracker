@@ -3,7 +3,7 @@
 Fyers uses OAuth-style auth: you open a login URL in the browser, log in,
 Fyers redirects to your redirect URI with an `auth_code`, and that code is
 exchanged for an access token. Access tokens are valid until end of day, so
-run `python run.py auth` once every morning before starting the engine.
+run `python3 run.py auth` once every morning before starting the engine.
 
 Docs: https://myapi.fyers.in/docsv3#tag/App-Creation/Individual-Apps
 """
@@ -67,7 +67,7 @@ def get_fyers(settings: Settings) -> fyersModel.FyersModel:
     token = load_token()
     if not token:
         raise RuntimeError(
-            "No valid Fyers access token. Run `python run.py auth` first "
+            "No valid Fyers access token. Run `python3 run.py auth` first "
             "(tokens expire daily)."
         )
     return fyersModel.FyersModel(

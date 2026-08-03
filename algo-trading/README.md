@@ -32,12 +32,31 @@ every 60s during market hours:
 
 ## Setup
 
+Open Terminal and run these three lines. On macOS use `python3` — plain `python`
+does not exist there, which is the most common reason the app "doesn't start".
+
 ```bash
-cd algo-trading
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env      # fill in your keys
+git clone https://github.com/sudhida07/sudheer-habit-tracker.git
+cd sudheer-habit-tracker/algo-trading
+bash setup.sh
 ```
+
+`setup.sh` creates the virtual environment, installs everything, and writes a
+starter `.env`. It only needs to be run once.
+
+### See it working straight away
+
+No API keys required — this fills the dashboard with a sample trading day so you
+can check the setup before signing up for anything:
+
+```bash
+bash start.sh demo
+```
+
+Then open **http://127.0.0.1:5050**. Leave the Terminal window open while you
+browse; closing it stops the server.
+
+### Then add your keys
 
 **Fyers app:** create an *Individual App* at [myapi.fyers.in](https://myapi.fyers.in)
 (App permissions: order placement + data). Put its Client ID, Secret and Redirect
@@ -47,14 +66,55 @@ URI in `.env`.
 [platform.claude.com](https://platform.claude.com)). Optional — without it the
 engine trades on raw strategy signals only.
 
+Edit the file with `nano .env` (save with `Ctrl+O`, `Enter`, then `Ctrl+X`).
+
 ## Daily routine
 
 ```bash
-python run.py auth        # once each morning — Fyers tokens expire daily
-python run.py all         # engine + dashboard at http://127.0.0.1:5050
+bash start.sh auth        # once each morning — Fyers tokens expire daily
+bash start.sh all         # engine + dashboard at http://127.0.0.1:5050
 ```
 
-Or run pieces separately: `python run.py trade` / `python run.py dashboard`.
+Or run pieces separately: `bash start.sh trade` / `bash start.sh dashboard`.
+
+`start.sh` just runs `.venv/bin/python run.py <command>`, so you never have to
+remember to activate the virtual environment. If you prefer doing it by hand:
+
+```bash
+source .venv/bin/activate
+python run.py all
+```
+
+## Watching from an iPad or phone
+
+The engine is a long-running Python process, so it has to run on a computer — an
+iPad can display the dashboard but cannot run the trading logic. Two ways to view it:
+
+**Same Wi-Fi (nothing to set up):** the dashboard listens on your whole local
+network. When it starts it prints the exact address to use, e.g.
+
+```
+  Dashboard ready:
+    on this computer   http://127.0.0.1:5050
+    on your iPad/phone http://192.168.1.100:5050   (same Wi-Fi network)
+```
+
+Type that second address into Safari on the iPad. Both devices must be on the
+same network, and the computer must stay awake with the Terminal window open.
+
+**From anywhere:** deploy the dashboard to Firebase — see the section below.
+
+## Troubleshooting
+
+| What you see | Fix |
+|---|---|
+| `zsh: command not found: python` | macOS only ships `python3`. Use `bash start.sh <command>`, which picks the right one. |
+| `cd: no such file or directory` | You are not in the project folder. Run `cd ~/sudheer-habit-tracker/algo-trading` first, or `ls ~` to find where you cloned it. |
+| `No .env file found` | Run `bash setup.sh`, or `cp .env.example .env` and fill it in. |
+| `Still missing in .env: ...` | The named keys are still placeholders — paste the real values from myapi.fyers.in. |
+| Safari: "Can't Connect to the Server" | The server is not running. Start it with `bash start.sh demo` and keep that window open. |
+| iPad cannot load the page | Use the `192.168.x.x` address the app prints, not `127.0.0.1` — that one only means "this device". |
+| `Address already in use` | An older copy is still running. Close it, or start on another port. |
 
 ## Configuration (`config.yaml`)
 
@@ -115,17 +175,20 @@ SDK). If you want it private, enable Firebase Auth and tighten the rule in
 ## Going live (only after successful paper trading)
 
 1. Set `mode: live` in `config.yaml`.
-2. `python run.py all` — it asks you to type `LIVE` to confirm.
+2. `bash start.sh all` — it asks you to type `LIVE` to confirm.
 3. Orders are placed as `INTRADAY` product type; the broker auto-squares-off
    leftovers, but the engine exits everything itself at 15:12 IST.
 
 ## Project layout
 
 ```
-run.py                     CLI: auth / trade / dashboard / all
+setup.sh                   one-time install (venv + dependencies + .env)
+start.sh                   run a command without activating the venv yourself
+run.py                     CLI: demo / auth / trade / dashboard / all
 config.yaml                capital, targets, risk, watchlist, session times
 fyers_algo/
   auth.py                  Fyers OAuth login + token storage
+  demo.py                  sample trading day for `start.sh demo`
   data.py                  quotes and candles
   strategy.py              EMA/RSI/VWAP signal generation
   claude_analyst.py        Claude reviews each trade (structured JSON verdict)
