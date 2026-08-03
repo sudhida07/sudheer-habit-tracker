@@ -36,9 +36,21 @@ Open Terminal and run these three lines. On macOS use `python3` — plain `pytho
 does not exist there, which is the most common reason the app "doesn't start".
 
 ```bash
-git clone https://github.com/sudhida07/sudheer-habit-tracker.git
+git clone -b claude/fyers-algo-trading-app-y8c56x https://github.com/sudhida07/sudheer-habit-tracker.git
 cd sudheer-habit-tracker/algo-trading
 bash setup.sh
+```
+
+The `-b` flag matters: this app lives on its own branch, so a plain
+`git clone` checks out `main`, where there is no `algo-trading` folder and the
+`cd` above fails. Drop the flag once the branch is merged into `main`.
+
+Already cloned without it? You do not need to clone again:
+
+```bash
+cd ~/sudheer-habit-tracker
+git checkout claude/fyers-algo-trading-app-y8c56x
+cd algo-trading && bash setup.sh
 ```
 
 `setup.sh` creates the virtual environment, installs everything, and writes a
@@ -109,7 +121,9 @@ same network, and the computer must stay awake with the Terminal window open.
 | What you see | Fix |
 |---|---|
 | `zsh: command not found: python` | macOS only ships `python3`. Use `bash start.sh <command>`, which picks the right one. |
+| `cd: no such file or directory: sudheer-habit-tracker/algo-trading` right after cloning | You are on `main`, which has no `algo-trading` folder. Run `cd ~/sudheer-habit-tracker && git checkout claude/fyers-algo-trading-app-y8c56x`. |
 | `cd: no such file or directory` | You are not in the project folder. Run `cd ~/sudheer-habit-tracker/algo-trading` first, or `ls ~` to find where you cloned it. |
+| `bash: start.sh: No such file or directory` | Same cause — you are not inside `algo-trading`, or you are on the wrong branch. |
 | `No .env file found` | Run `bash setup.sh`, or `cp .env.example .env` and fill it in. |
 | `Still missing in .env: ...` | The named keys are still placeholders — paste the real values from myapi.fyers.in. |
 | Safari: "Can't Connect to the Server" | The server is not running. Start it with `bash start.sh demo` and keep that window open. |
