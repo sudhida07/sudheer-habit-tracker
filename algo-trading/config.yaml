@@ -1,0 +1,59 @@
+# ============================================================
+# Fyers Algo Trading — configuration
+# ============================================================
+
+# "paper" = simulated orders with real market data (SAFE, default)
+# "live"  = real money orders on your Fyers account
+mode: paper
+
+capital: 25000               # trading capital in INR
+
+targets:
+  daily_profit_target_pct: 15   # stop trading for the day once total P&L hits +15% of capital
+                                # NOTE: 15%/day is an aspiration, not an expectation — see README.
+                                # It is also unreachable as configured, at any capital: a position
+                                # cannot exceed capital, so max_trades_per_day × per_trade_target_pct
+                                # (12 × 1.0% = 12%) caps a flawless day below this 15% figure.
+                                # Raise either of those, or lower this, to make the ceiling real.
+  per_trade_target_pct: 1.0     # take-profit per trade, % move of the stock price
+  per_trade_stoploss_pct: 0.5   # stop-loss per trade, % move of the stock price
+
+risk:
+  max_daily_loss_pct: 4         # halt all trading if the day's loss reaches 4% of capital
+  risk_per_trade_pct: 1.5       # max capital risked per trade (used for position sizing)
+  max_open_positions: 2
+  max_trades_per_day: 12
+
+# Liquid NSE stocks the engine scans (Fyers symbol format)
+watchlist:
+  - NSE:SBIN-EQ
+  - NSE:TATASTEEL-EQ
+  - NSE:ONGC-EQ
+  - NSE:NTPC-EQ
+  - NSE:COALINDIA-EQ
+  - NSE:GAIL-EQ
+  - NSE:BPCL-EQ
+  - NSE:IOC-EQ
+
+session:
+  start: "09:20"      # don't trade the opening volatility
+  end: "15:00"        # no new entries after this
+  square_off: "15:12" # force-close everything before broker auto square-off
+  scan_interval_sec: 60
+  candle_resolution: "5"   # 5-minute candles
+
+claude:
+  enabled: true            # ask Claude to vet every signal before placing the trade
+  # Opus 5 is priced the same as Opus 4.8 ($5/$25 per Mtok) and is the newer model.
+  # Only signals reach Claude — not every 60s scan — so a review costs about ₹0.80.
+  # claude-haiku-4-5 cuts that to ₹0.16 if you would rather spend less per review.
+  model: claude-opus-5
+  min_confidence: 0.6      # skip trades Claude scores below this
+
+dashboard:
+  port: 5050               # give each install its own port when several run on one machine
+
+firebase:
+  enabled: false           # push live state to Firestore for the hosted dashboard
+  service_account: serviceAccount.json   # Firebase service-account key (git-ignored)
+  document: algo/dashboard # give each install its own document, or they overwrite each other

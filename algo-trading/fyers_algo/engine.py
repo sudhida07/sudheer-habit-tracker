@@ -1,0 +1,254 @@
+"""Trading engine: scan → signal → Claude review → risk check → execute → manage exits.
+
+Runs during market hours (NSE, Mon-Fri 09:15-15:30 IST). Every open position is
+monitored on each cycle and auto-exited on stop-loss, target, or square-off time.
+"""
+
+import logging
+import time
+from datetime import datetime, time as dtime
+from zoneinfo import ZoneInfo
+
+from . import store
+from .broker import FyersBroker, PaperBroker
+from .claude_analyst import ClaudeAnalyst
+from .data import get_candles, get_quote
+from .firebase_sync import make_sync
+from .risk import RiskManager
+from .state import build_state
+from .strategy import evaluate
+
+IST = ZoneInfo("Asia/Kolkata")
+log = logging.getLogger("engine")
+
+
+def _parse_t(s: str) -> dtime:
+    h, m = s.split(":")
+    return dtime(int(h), int(m))
+
+
+class Engine:
+    def __init__(self, settings, fyers):
+        self.settings = settings
+        self.fyers = fyers
+        self.risk = RiskManager(settings)
+        self.broker = (
+            FyersBroker(fyers) if settings.mode == "live" else PaperBroker()
+        )
+        c = settings.claude
+        self.analyst = None
+        if c.get("enabled", True) and settings.anthropic_api_key:
+            self.analyst = ClaudeAnalyst(
+                settings.anthropic_api_key,
+                model=c.get("model", "claude-opus-5"),
+                min_confidence=float(c.get("min_confidence", 0.6)),
+            )
+        s = settings.session
+        self.t_start = _parse_t(s.get("start", "09:20"))
+        self.t_end = _parse_t(s.get("end", "15:00"))
+        self.t_squareoff = _parse_t(s.get("square_off", "15:12"))
+        self.interval = int(s.get("scan_interval_sec", 60))
+        self.resolution = s.get("candle_resolution", "5")
+        self.firebase = make_sync(settings)
+
+    # ---------- session helpers ----------
+
+    def now(self) -> datetime:
+        return datetime.now(IST)
+
+    def market_open(self) -> bool:
+        n = self.now()
+        return n.weekday() < 5 and dtime(9, 15) <= n.time() <= dtime(15, 30)
+
+    def can_enter(self) -> bool:
+        t = self.now().time()
+        return self.t_start <= t <= self.t_end
+
+    def must_square_off(self) -> bool:
+        return self.now().time() >= self.t_squareoff
+
+    # ---------- exits ----------
+
+    def manage_open_positions(self):
+        unrealized = 0.0
+        for tr in store.open_trades():
+            price = get_quote(self.fyers, tr["symbol"])
+            if price is None:
+                continue
+            side, qty = tr["side"], tr["qty"]
+            pnl = (price - tr["entry_price"]) * qty if side == "BUY" \
+                else (tr["entry_price"] - price) * qty
+
+            reason = None
+            if side == "BUY" and price <= tr["stoploss"]:
+                reason = "STOPLOSS"
+            elif side == "BUY" and price >= tr["target"]:
+                reason = "TARGET"
+            elif side == "SELL" and price >= tr["stoploss"]:
+                reason = "STOPLOSS"
+            elif side == "SELL" and price <= tr["target"]:
+                reason = "TARGET"
+            elif self.must_square_off():
+                reason = "SQUARE_OFF"
+            elif self.risk.day_state()["target_hit"]:
+                reason = "DAILY_TARGET"
+
+            if reason:
+                exit_side = "SELL" if side == "BUY" else "BUY"
+                res = self.broker.place_market_order(tr["symbol"], exit_side, qty, price)
+                if res["ok"]:
+                    fill = res["fill_price"]
+                    pnl = (fill - tr["entry_price"]) * qty if side == "BUY" \
+                        else (tr["entry_price"] - fill) * qty
+                    store.record_exit(tr["id"], fill, round(pnl, 2), reason)
+                    log.info("EXIT %s %s x%d @ %.2f (%s) pnl=%.2f",
+                             side, tr["symbol"], qty, fill, reason, pnl)
+            else:
+                unrealized += pnl
+        return unrealized
+
+    # ---------- entries ----------
+
+    def try_enter(self, symbol: str) -> dict:
+        """Scan one symbol. Returns a serialisable snapshot for the dashboard."""
+        if not self.can_enter() or self.must_square_off():
+            return {"symbol": symbol, "waiting_for": "not taking new entries"}
+        if any(t["symbol"] == symbol for t in store.open_trades()):
+            return {"symbol": symbol, "waiting_for": "position already open"}
+
+        candles = get_candles(self.fyers, symbol, self.resolution)
+        if candles.empty:
+            return {"symbol": symbol, "waiting_for": "no candle data returned"}
+        ev = evaluate(symbol, candles)
+        signal = ev.pop("signal")
+        if not signal:
+            return ev
+
+        decision = self.risk.check_new_trade(signal.price)
+        if not decision.allowed:
+            log.info("Signal %s %s blocked: %s", signal.side, symbol, decision.reason)
+            store.record_signal(symbol, signal.side, signal.price, "BLOCKED", decision.reason)
+            ev["waiting_for"] = f"{signal.side} signal blocked — {decision.reason}"
+            return ev
+
+        sl_pct = tgt_pct = None
+        reasoning = "Claude analyst disabled"
+        if self.analyst:
+            verdict = self.analyst.review(signal, candles, {
+                "stoploss_pct": self.risk.stoploss_pct,
+                "target_pct": self.risk.target_pct,
+                "qty": decision.qty,
+                "exposure": decision.qty * signal.price,
+                "capital": self.risk.capital,
+                "day_pnl": store.day_realized_pnl(),
+                "trades_today": len(store.trades_today()),
+                "open_positions": len(store.open_trades()),
+            })
+            reasoning = verdict.get("reasoning", "")
+            if not verdict["approve"]:
+                conf = verdict.get("confidence", 0)
+                log.info("Claude rejected %s %s (conf %.2f): %s",
+                         signal.side, symbol, conf, reasoning)
+                store.record_signal(symbol, signal.side, signal.price, "REJECTED",
+                                    f"Claude (confidence {conf:.2f}): {reasoning}")
+                ev["waiting_for"] = f"{signal.side} signal — Claude rejected: {reasoning}"
+                return ev
+            sl_pct = verdict.get("suggested_stoploss_pct")
+            tgt_pct = verdict.get("suggested_target_pct")
+
+        res = self.broker.place_market_order(symbol, signal.side, decision.qty, signal.price)
+        if not res["ok"]:
+            store.record_signal(symbol, signal.side, signal.price, "BLOCKED",
+                                "broker rejected the order")
+            ev["waiting_for"] = f"{signal.side} signal — broker rejected the order"
+            return ev
+        entry = res["fill_price"]
+        sl, tgt = self.risk.levels(signal.side, entry, sl_pct, tgt_pct)
+        store.record_entry(symbol, signal.side, decision.qty, entry,
+                           round(sl, 2), round(tgt, 2), self.broker.mode, reasoning)
+        log.info("ENTER %s %s x%d @ %.2f sl=%.2f tgt=%.2f",
+                 signal.side, symbol, decision.qty, entry, sl, tgt)
+        store.record_signal(symbol, signal.side, entry, "ENTERED",
+                            f"{decision.qty} shares · {reasoning}")
+        ev["waiting_for"] = (f"ENTERED {signal.side} x{decision.qty} @ {entry:.2f}")
+        return ev
+
+    # ---------- forced test entry ----------
+
+    def force_entry(self, symbol: str, side: str = "BUY",
+                    sl_pct: float = 0.1, tgt_pct: float = 0.15) -> dict:
+        """Open one position immediately at the live price, skipping signal generation.
+
+        Used by `run.py testtrade` to exercise entry → monitor → exit during market
+        hours without waiting for a crossover. Stop and target default much tighter
+        than the configured levels so the position actually resolves while watching.
+        Risk limits still apply — this bypasses the strategy, not the risk manager.
+        """
+        if self.broker.mode != "paper":
+            raise SystemExit("testtrade refuses to run in live mode. Set mode: paper in config.yaml.")
+        if not self.market_open():
+            log.warning("Market is closed — the quote below will be the last traded price.")
+
+        price = get_quote(self.fyers, symbol)
+        if price is None:
+            raise SystemExit(f"No quote for {symbol}. Check the symbol format, e.g. NSE:SBIN-EQ.")
+
+        decision = self.risk.check_new_trade(price)
+        if not decision.allowed:
+            raise SystemExit(f"Risk manager blocked the test trade: {decision.reason}")
+
+        res = self.broker.place_market_order(symbol, side, decision.qty, price)
+        if not res["ok"]:
+            raise SystemExit("Broker rejected the test trade.")
+
+        entry = res["fill_price"]
+        sl, tgt = self.risk.levels(side, entry, sl_pct, tgt_pct)
+        store.record_entry(symbol, side, decision.qty, entry, round(sl, 2), round(tgt, 2),
+                           self.broker.mode,
+                           "Forced test trade — not a strategy signal.")
+        return {"symbol": symbol, "side": side, "qty": decision.qty,
+                "entry": entry, "stoploss": round(sl, 2), "target": round(tgt, 2)}
+
+    # ---------- main loop ----------
+
+    def run(self):
+        store.init_db()
+        log.info("Engine started — mode=%s capital=%.0f daily_target=%.0f max_loss=%.0f",
+                 self.settings.mode, self.risk.capital,
+                 self.risk.daily_target, self.risk.max_daily_loss)
+        while True:
+            try:
+                if not self.market_open():
+                    store.set_status(engine="waiting (market closed)",
+                                     mode=self.settings.mode,
+                                     updated=self.now().isoformat(timespec="seconds"))
+                    if self.firebase:
+                        self.firebase.publish(build_state(self.settings))
+                    time.sleep(60)
+                    continue
+
+                unrealized = self.manage_open_positions()
+                state = self.risk.day_state()
+                store.snapshot_equity(state["realized"], round(unrealized, 2))
+
+                if state["target_hit"]:
+                    status = "DONE — daily profit target hit"
+                elif state["loss_limit_hit"]:
+                    status = "HALTED — max daily loss hit"
+                else:
+                    status = "scanning"
+                    scan = [self.try_enter(sym) for sym in self.settings.watchlist]
+                    store.set_status(scan=scan)
+
+                store.set_status(
+                    engine=status, mode=self.settings.mode,
+                    capital=self.risk.capital,
+                    daily_target=self.risk.daily_target,
+                    max_daily_loss=self.risk.max_daily_loss,
+                    updated=self.now().isoformat(timespec="seconds"),
+                )
+                if self.firebase:
+                    self.firebase.publish(build_state(self.settings))
+            except Exception:
+                log.exception("Engine cycle failed; retrying next cycle")
+            time.sleep(self.interval)

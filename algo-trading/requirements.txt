@@ -1,0 +1,8 @@
+fyers-apiv3>=3.1.0
+anthropic>=0.60.0
+flask>=3.0.0
+pyyaml>=6.0
+python-dotenv>=1.0.0
+pandas>=2.0.0
+firebase-admin>=6.5.0
+
