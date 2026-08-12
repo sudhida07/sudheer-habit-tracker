@@ -4,9 +4,12 @@
 Usage:
   python3 run.py demo       # sample dashboard, no API keys needed — start here
   python3 run.py auth       # daily Fyers login (saves access token)
+  python3 run.py testtrade  # force one paper trade now, then run normally
   python3 run.py trade      # start the trading engine
   python3 run.py dashboard  # start the web dashboard only
   python3 run.py all        # engine + dashboard together
+
+`testtrade` takes an optional symbol: python3 run.py testtrade NSE:ONGC-EQ
 """
 
 import logging
@@ -22,7 +25,7 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
-COMMANDS = ("demo", "auth", "trade", "dashboard", "all")
+COMMANDS = ("demo", "auth", "testtrade", "trade", "dashboard", "all")
 
 
 def check_env(settings):
@@ -92,9 +95,20 @@ def main():
     from fyers_algo.engine import Engine
     engine = Engine(settings, fyers)
 
+    if cmd == "testtrade":
+        symbol = sys.argv[2] if len(sys.argv) > 2 else settings.watchlist[0]
+        t = engine.force_entry(symbol)
+        print(
+            f"\n  Test paper trade opened (no real money):\n"
+            f"    {t['side']} {t['symbol']} x{t['qty']} @ {t['entry']:.2f}\n"
+            f"    stop {t['stoploss']:.2f}   target {t['target']:.2f}\n\n"
+            "  The engine now manages it every 60s and will close it on stop,\n"
+            "  target, or the 15:12 square-off. Watch it on the dashboard.\n"
+        )
+
     if cmd == "trade":
         engine.run()
-    else:  # all
+    else:  # all, testtrade
         threading.Thread(target=engine.run, daemon=True).start()
         run_dashboard()
 

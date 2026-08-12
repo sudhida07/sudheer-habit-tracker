@@ -158,6 +158,42 @@ class Engine:
         log.info("ENTER %s %s x%d @ %.2f sl=%.2f tgt=%.2f",
                  signal.side, symbol, decision.qty, entry, sl, tgt)
 
+    # ---------- forced test entry ----------
+
+    def force_entry(self, symbol: str, side: str = "BUY",
+                    sl_pct: float = 0.1, tgt_pct: float = 0.15) -> dict:
+        """Open one position immediately at the live price, skipping signal generation.
+
+        Used by `run.py testtrade` to exercise entry → monitor → exit during market
+        hours without waiting for a crossover. Stop and target default much tighter
+        than the configured levels so the position actually resolves while watching.
+        Risk limits still apply — this bypasses the strategy, not the risk manager.
+        """
+        if self.broker.mode != "paper":
+            raise SystemExit("testtrade refuses to run in live mode. Set mode: paper in config.yaml.")
+        if not self.market_open():
+            log.warning("Market is closed — the quote below will be the last traded price.")
+
+        price = get_quote(self.fyers, symbol)
+        if price is None:
+            raise SystemExit(f"No quote for {symbol}. Check the symbol format, e.g. NSE:SBIN-EQ.")
+
+        decision = self.risk.check_new_trade(price)
+        if not decision.allowed:
+            raise SystemExit(f"Risk manager blocked the test trade: {decision.reason}")
+
+        res = self.broker.place_market_order(symbol, side, decision.qty, price)
+        if not res["ok"]:
+            raise SystemExit("Broker rejected the test trade.")
+
+        entry = res["fill_price"]
+        sl, tgt = self.risk.levels(side, entry, sl_pct, tgt_pct)
+        store.record_entry(symbol, side, decision.qty, entry, round(sl, 2), round(tgt, 2),
+                           self.broker.mode,
+                           "Forced test trade — not a strategy signal.")
+        return {"symbol": symbol, "side": side, "qty": decision.qty,
+                "entry": entry, "stoploss": round(sl, 2), "target": round(tgt, 2)}
+
     # ---------- main loop ----------
 
     def run(self):

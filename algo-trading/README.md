@@ -97,6 +97,35 @@ source .venv/bin/activate
 python run.py all
 ```
 
+## Testing with real market data (paper mode)
+
+Paper mode simulates the *orders*, not the *prices* — it reads live quotes and
+candles from Fyers, so a Fyers login is required even though no money moves.
+The Claude key stays optional; without it the engine trades on raw strategy signals.
+
+```bash
+bash start.sh auth        # Fyers login for today
+bash start.sh all         # engine + dashboard, real prices, simulated fills
+```
+
+The engine only enters when EMA9/21 crosses with RSI and VWAP agreeing, so a
+quiet session can pass with no trades at all. To confirm the machinery works
+without waiting for a signal:
+
+```bash
+bash start.sh testtrade                 # first watchlist symbol
+bash start.sh testtrade NSE:ONGC-EQ     # or pick one
+```
+
+That opens one simulated position at the current live price with a deliberately
+tight stop (0.1%) and target (0.15%) so it resolves in minutes rather than hours,
+then hands over to the normal engine loop, which manages it every 60 seconds and
+closes it on stop, target, or the 15:12 square-off. Watch the trade appear, move,
+and close on the dashboard — that exercises the entire path end to end.
+
+`testtrade` refuses to run when `mode: live`, and position sizing and the daily
+risk limits still apply; it skips the strategy, not the risk manager.
+
 ## Watching from an iPad or phone
 
 The engine is a long-running Python process, so it has to run on a computer — an
@@ -198,7 +227,7 @@ SDK). If you want it private, enable Firebase Auth and tighten the rule in
 ```
 setup.sh                   one-time install (venv + dependencies + .env)
 start.sh                   run a command without activating the venv yourself
-run.py                     CLI: demo / auth / trade / dashboard / all
+run.py                     CLI: demo / auth / testtrade / trade / dashboard / all
 config.yaml                capital, targets, risk, watchlist, session times
 fyers_algo/
   auth.py                  Fyers OAuth login + token storage
