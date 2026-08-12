@@ -43,15 +43,29 @@ class RiskManager:
         if len(store.trades_today()) >= self.max_trades:
             return RiskDecision(False, "Max trades per day reached")
 
-        # Size so that hitting the stop-loss costs at most `risk_per_trade`,
-        # and exposure never exceeds available capital (cash segment, no leverage).
+        # Size so that hitting the stop-loss costs at most `risk_per_trade`, and
+        # total exposure never exceeds capital (cash segment, no leverage). The
+        # cap is against capital still free, not capital outright — sizing each
+        # trade against the full amount lets max_open_positions concurrent trades
+        # hold that many times capital, which is leverage nobody asked for.
         sl_dist = price * self.stoploss_pct / 100
         if sl_dist <= 0:
             return RiskDecision(False, "Invalid stop-loss distance")
+        committed = sum(t["qty"] * t["entry_price"] for t in store.open_trades())
+        available = self.capital - committed
+        if available <= 0:
+            return RiskDecision(False, f"Capital fully committed (₹{committed:,.0f} in open positions)")
+        # Capital is divided into max_open_positions slots. Sizing against the
+        # whole free balance would let the first trade swallow it and leave the
+        # remaining slots permanently unfillable.
+        per_slot = self.capital / self.max_open
         qty = int(self.risk_per_trade / sl_dist)
-        qty = min(qty, int(self.capital / price))
+        qty = min(qty, int(min(per_slot, available) / price))
         if qty < 1:
-            return RiskDecision(False, f"Price {price:.2f} too high for capital — qty would be 0")
+            return RiskDecision(
+                False,
+                f"Price {price:.2f} too high for the ₹{available:,.0f} still free — qty would be 0",
+            )
         return RiskDecision(True, "", qty)
 
     def levels(self, side: str, entry: float, sl_pct=None, tgt_pct=None) -> tuple[float, float]:
