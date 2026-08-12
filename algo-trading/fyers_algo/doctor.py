@@ -98,6 +98,20 @@ def run():
             _line(OK if claude_set else WARN, "Claude key",
                   _mask(st.anthropic_api_key) if claude_set
                   else "not set — engine runs, but without Claude vetting signals")
+
+            # Report the model the engine will actually construct the analyst with,
+            # resolved the same way engine.py does — reading config.yaml by eye
+            # misses the fallback that applies when the key is absent entirely.
+            cfg = st.claude
+            model = cfg.get("model", "claude-opus-5")
+            if not cfg.get("enabled", True):
+                state, detail = WARN, f"{model} — disabled in config.yaml, will not be called"
+            elif not claude_set:
+                state, detail = WARN, f"{model} — set, but no key so no call is made"
+            else:
+                state = OK
+                detail = f"{model}  (min_confidence {cfg.get('min_confidence', 0.6)})"
+            _line(state, "Claude model", detail)
     except Exception as e:
         _line(BAD, "config", f"{type(e).__name__}: {e}")
         problems.append("config.yaml could not be read.")
