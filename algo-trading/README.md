@@ -227,6 +227,32 @@ anyone who has your URL (writes are blocked; the engine writes via the Admin
 SDK). If you want it private, enable Firebase Auth and tighten the rule in
 `firebase/firestore.rules` — the file has a comment showing exactly what to change.
 
+### Adding it to an existing Firebase app instead
+
+`firebase/public/fyers.html` is a self-contained page for dropping into a Firebase
+project you already have — it needs no build step and no config, because Firebase
+Hosting serves the SDK and your project's settings from the reserved `/__/firebase/`
+paths. Copy it into that project's public directory and deploy.
+
+Three things to adjust:
+
+1. **Nav links.** The `<nav>` block near the top has placeholder `href`s. Point them
+   at your app's real routes and keep `class="active"` on the Fyers link.
+2. **Firestore document.** The `DOC` constant in the script must match
+   `firebase.document` in `config.yaml`.
+3. **Security rule.** The page requires a signed-in user, so the rule can require one
+   too — stricter than the standalone page's public read:
+
+   ```
+   match /algo/dashboard {
+     allow read: if request.auth != null;
+     allow write: if false;
+   }
+   ```
+
+The engine writes with the Admin SDK, which bypasses rules, so tightening the read
+side costs it nothing.
+
 ## Going live (only after successful paper trading)
 
 1. Set `mode: live` in `config.yaml`.
