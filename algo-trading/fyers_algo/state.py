@@ -30,4 +30,6 @@ def build_state(settings) -> dict:
         "win_rate": round(100 * wins / closed, 1) if closed else None,
         "closed_trades": closed,
         "open_trades": len([t for t in trades if t["status"] == "OPEN"]),
+        # per-symbol scan state, so a quiet session is distinguishable from a stuck one
+        "scan": status.get("scan", []),
     }

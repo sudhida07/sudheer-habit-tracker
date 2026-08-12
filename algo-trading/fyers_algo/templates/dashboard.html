@@ -103,6 +103,20 @@
 </div>
 
 <div class="card">
+  <h2>Watchlist — what each symbol is waiting for</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr>
+        <th>Symbol</th><th>Price</th><th>EMA9</th><th>EMA21</th><th>Gap</th>
+        <th>RSI</th><th>VWAP</th><th>Status</th>
+      </tr></thead>
+      <tbody id="srows"></tbody>
+    </table>
+    <div class="empty" id="noScan">Waiting for the first scan…</div>
+  </div>
+</div>
+
+<div class="card">
   <h2>Trades</h2>
   <div class="tablewrap">
     <table>
@@ -208,6 +222,25 @@ async function refresh() {
     const rows = document.getElementById("trows");
     rows.innerHTML = "";
     document.getElementById("noTrades").style.display = s.trades.length ? "none" : "block";
+
+  const scan = s.scan || [];
+  const srows = document.getElementById("srows");
+  srows.innerHTML = "";
+  document.getElementById("noScan").style.display = scan.length ? "none" : "block";
+  for (const r of scan) {
+    const armed = /signal|ENTERED/.test(r.waiting_for || "");
+    const tr = document.createElement("tr");
+    const num = v => v === undefined ? "–" : Number(v).toFixed(2);
+    tr.innerHTML =
+      `<td>${(r.symbol||"").replace("NSE:","").replace("-EQ","")}</td>` +
+      `<td>${num(r.close)}</td><td>${num(r.ema9)}</td><td>${num(r.ema21)}</td>` +
+      `<td class="${r.gap_pct > 0 ? "pos" : r.gap_pct < 0 ? "neg" : ""}">` +
+        `${r.gap_pct === undefined ? "–" : (r.gap_pct > 0 ? "+" : "") + r.gap_pct + "%"}</td>` +
+      `<td>${r.rsi === undefined ? "–" : r.rsi}</td><td>${num(r.vwap)}</td>` +
+      `<td class="reason" style="${armed ? "color:var(--good);font-weight:600" : ""}" ` +
+        `title="${(r.waiting_for||"").replace(/"/g,"&quot;")}">${r.waiting_for || ""}</td>`;
+    srows.appendChild(tr);
+  }
     for (const t of s.trades) {
       const tr = document.createElement("tr");
       tr.innerHTML =

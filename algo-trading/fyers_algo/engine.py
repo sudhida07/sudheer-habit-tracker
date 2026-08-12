@@ -16,7 +16,7 @@ from .data import get_candles, get_quote
 from .firebase_sync import make_sync
 from .risk import RiskManager
 from .state import build_state
-from .strategy import generate_signal
+from .strategy import evaluate
 
 IST = ZoneInfo("Asia/Kolkata")
 log = logging.getLogger("engine")
@@ -109,23 +109,26 @@ class Engine:
 
     # ---------- entries ----------
 
-    def try_enter(self, symbol: str):
+    def try_enter(self, symbol: str) -> dict:
+        """Scan one symbol. Returns a serialisable snapshot for the dashboard."""
         if not self.can_enter() or self.must_square_off():
-            return
+            return {"symbol": symbol, "waiting_for": "not taking new entries"}
         if any(t["symbol"] == symbol for t in store.open_trades()):
-            return
+            return {"symbol": symbol, "waiting_for": "position already open"}
 
         candles = get_candles(self.fyers, symbol, self.resolution)
         if candles.empty:
-            return
-        signal = generate_signal(symbol, candles)
+            return {"symbol": symbol, "waiting_for": "no candle data returned"}
+        ev = evaluate(symbol, candles)
+        signal = ev.pop("signal")
         if not signal:
-            return
+            return ev
 
         decision = self.risk.check_new_trade(signal.price)
         if not decision.allowed:
             log.info("Signal %s %s blocked: %s", signal.side, symbol, decision.reason)
-            return
+            ev["waiting_for"] = f"{signal.side} signal blocked — {decision.reason}"
+            return ev
 
         sl_pct = tgt_pct = None
         reasoning = "Claude analyst disabled"
@@ -144,19 +147,23 @@ class Engine:
             if not verdict["approve"]:
                 log.info("Claude rejected %s %s (conf %.2f): %s",
                          signal.side, symbol, verdict.get("confidence", 0), reasoning)
-                return
+                ev["waiting_for"] = f"{signal.side} signal — Claude rejected: {reasoning}"
+                return ev
             sl_pct = verdict.get("suggested_stoploss_pct")
             tgt_pct = verdict.get("suggested_target_pct")
 
         res = self.broker.place_market_order(symbol, signal.side, decision.qty, signal.price)
         if not res["ok"]:
-            return
+            ev["waiting_for"] = f"{signal.side} signal — broker rejected the order"
+            return ev
         entry = res["fill_price"]
         sl, tgt = self.risk.levels(signal.side, entry, sl_pct, tgt_pct)
         store.record_entry(symbol, signal.side, decision.qty, entry,
                            round(sl, 2), round(tgt, 2), self.broker.mode, reasoning)
         log.info("ENTER %s %s x%d @ %.2f sl=%.2f tgt=%.2f",
                  signal.side, symbol, decision.qty, entry, sl, tgt)
+        ev["waiting_for"] = (f"ENTERED {signal.side} x{decision.qty} @ {entry:.2f}")
+        return ev
 
     # ---------- forced test entry ----------
 
@@ -222,8 +229,8 @@ class Engine:
                     status = "HALTED — max daily loss hit"
                 else:
                     status = "scanning"
-                    for symbol in self.settings.watchlist:
-                        self.try_enter(symbol)
+                    scan = [self.try_enter(sym) for sym in self.settings.watchlist]
+                    store.set_status(scan=scan)
 
                 store.set_status(
                     engine=status, mode=self.settings.mode,
