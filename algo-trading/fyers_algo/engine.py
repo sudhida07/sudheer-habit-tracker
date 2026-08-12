@@ -40,7 +40,7 @@ class Engine:
         if c.get("enabled", True) and settings.anthropic_api_key:
             self.analyst = ClaudeAnalyst(
                 settings.anthropic_api_key,
-                model=c.get("model", "claude-opus-4-8"),
+                model=c.get("model", "claude-opus-5"),
                 min_confidence=float(c.get("min_confidence", 0.6)),
             )
         s = settings.session

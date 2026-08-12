@@ -40,7 +40,10 @@ session:
 
 claude:
   enabled: true            # ask Claude to vet every signal before placing the trade
-  model: claude-opus-4-8
+  # Opus 5 is priced the same as Opus 4.8 ($5/$25 per Mtok) and is the newer model.
+  # Only signals reach Claude — not every 60s scan — so a review costs about ₹0.80.
+  # claude-haiku-4-5 cuts that to ₹0.16 if you would rather spend less per review.
+  model: claude-opus-5
   min_confidence: 0.6      # skip trades Claude scores below this
 
 firebase:

@@ -42,7 +42,7 @@ Only include suggested_stoploss_pct / suggested_target_pct if you would change t
 
 
 class ClaudeAnalyst:
-    def __init__(self, api_key: str, model: str = "claude-opus-4-8", min_confidence: float = 0.6):
+    def __init__(self, api_key: str, model: str = "claude-opus-5", min_confidence: float = 0.6):
         self.client = anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic()
         self.model = model
         self.min_confidence = min_confidence
