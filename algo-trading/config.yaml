@@ -6,11 +6,15 @@
 # "live"  = real money orders on your Fyers account
 mode: paper
 
-capital: 5000                # trading capital in INR
+capital: 25000               # trading capital in INR
 
 targets:
   daily_profit_target_pct: 15   # stop trading for the day once total P&L hits +15% of capital
-                                # NOTE: 15%/day is an aspiration, not an expectation — see README
+                                # NOTE: 15%/day is an aspiration, not an expectation — see README.
+                                # It is also unreachable as configured, at any capital: a position
+                                # cannot exceed capital, so max_trades_per_day × per_trade_target_pct
+                                # (12 × 1.0% = 12%) caps a flawless day below this 15% figure.
+                                # Raise either of those, or lower this, to make the ceiling real.
   per_trade_target_pct: 1.0     # take-profit per trade, % move of the stock price
   per_trade_stoploss_pct: 0.5   # stop-loss per trade, % move of the stock price
 
