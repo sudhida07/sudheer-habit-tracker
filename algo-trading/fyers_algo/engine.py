@@ -127,6 +127,7 @@ class Engine:
         decision = self.risk.check_new_trade(signal.price)
         if not decision.allowed:
             log.info("Signal %s %s blocked: %s", signal.side, symbol, decision.reason)
+            store.record_signal(symbol, signal.side, signal.price, "BLOCKED", decision.reason)
             ev["waiting_for"] = f"{signal.side} signal blocked — {decision.reason}"
             return ev
 
@@ -145,8 +146,11 @@ class Engine:
             })
             reasoning = verdict.get("reasoning", "")
             if not verdict["approve"]:
+                conf = verdict.get("confidence", 0)
                 log.info("Claude rejected %s %s (conf %.2f): %s",
-                         signal.side, symbol, verdict.get("confidence", 0), reasoning)
+                         signal.side, symbol, conf, reasoning)
+                store.record_signal(symbol, signal.side, signal.price, "REJECTED",
+                                    f"Claude (confidence {conf:.2f}): {reasoning}")
                 ev["waiting_for"] = f"{signal.side} signal — Claude rejected: {reasoning}"
                 return ev
             sl_pct = verdict.get("suggested_stoploss_pct")
@@ -154,6 +158,8 @@ class Engine:
 
         res = self.broker.place_market_order(symbol, signal.side, decision.qty, signal.price)
         if not res["ok"]:
+            store.record_signal(symbol, signal.side, signal.price, "BLOCKED",
+                                "broker rejected the order")
             ev["waiting_for"] = f"{signal.side} signal — broker rejected the order"
             return ev
         entry = res["fill_price"]
@@ -162,6 +168,8 @@ class Engine:
                            round(sl, 2), round(tgt, 2), self.broker.mode, reasoning)
         log.info("ENTER %s %s x%d @ %.2f sl=%.2f tgt=%.2f",
                  signal.side, symbol, decision.qty, entry, sl, tgt)
+        store.record_signal(symbol, signal.side, entry, "ENTERED",
+                            f"{decision.qty} shares · {reasoning}")
         ev["waiting_for"] = (f"ENTERED {signal.side} x{decision.qty} @ {entry:.2f}")
         return ev
 

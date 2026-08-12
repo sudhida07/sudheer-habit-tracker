@@ -54,6 +54,18 @@ CREATE TABLE IF NOT EXISTS status (
     key TEXT PRIMARY KEY,
     value TEXT
 );
+-- Every signal the strategy produced, including the ones that never became a
+-- trade. The live scan view only shows the current cycle, so without this the
+-- reason a signal was turned down is gone 60 seconds later.
+CREATE TABLE IF NOT EXISTS signals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    side TEXT NOT NULL,
+    price REAL,
+    outcome TEXT NOT NULL,   -- ENTERED / BLOCKED / REJECTED
+    detail TEXT
+);
 """
 
 
@@ -107,6 +119,22 @@ def day_realized_pnl() -> float:
             "SELECT COALESCE(SUM(pnl),0) p FROM trades WHERE status='CLOSED' AND ts LIKE ?",
             (day + "%",)).fetchone()
         return float(row["p"])
+
+
+def record_signal(symbol, side, price, outcome, detail=""):
+    """Log a signal and what became of it — entered, blocked, or rejected."""
+    with _lock, _conn() as c:
+        c.execute(
+            "INSERT INTO signals (ts, symbol, side, price, outcome, detail) VALUES (?,?,?,?,?,?)",
+            (datetime.now().isoformat(timespec="seconds"), symbol, side, price, outcome, detail),
+        )
+
+
+def signals_today():
+    day = datetime.now().date().isoformat()
+    with _lock, _conn() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT * FROM signals WHERE ts LIKE ? ORDER BY id DESC", (day + "%",))]
 
 
 def snapshot_equity(realized, unrealized, ts=None):

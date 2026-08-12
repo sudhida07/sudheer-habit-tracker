@@ -32,4 +32,6 @@ def build_state(settings) -> dict:
         "open_trades": len([t for t in trades if t["status"] == "OPEN"]),
         # per-symbol scan state, so a quiet session is distinguishable from a stuck one
         "scan": status.get("scan", []),
+        # every signal and what became of it — the scan view only holds the last cycle
+        "signals": store.signals_today(),
     }
