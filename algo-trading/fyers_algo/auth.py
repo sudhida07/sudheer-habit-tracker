@@ -12,12 +12,31 @@ import json
 import time
 import webbrowser
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from fyers_apiv3 import fyersModel
 
 from .config import DATA_DIR, Settings
 
 TOKEN_FILE = DATA_DIR / "fyers_token.json"
+
+
+def extract_auth_code(pasted: str) -> str:
+    """Accept either the bare auth_code or the whole redirect URL.
+
+    The redirect lands on a dead port, so the browser shows an error page and the
+    only copyable thing is the address bar. Picking the code out of that by hand
+    means selecting a ~600-character JWT between two query parameters, so take the
+    URL as-is and pull the code out here instead.
+    """
+    pasted = pasted.strip().strip('"').strip("'")
+    if "auth_code=" not in pasted:
+        return pasted
+    query = urlparse(pasted).query or pasted.split("?", 1)[-1]
+    codes = parse_qs(query).get("auth_code")
+    if not codes or not codes[0]:
+        raise RuntimeError("Found 'auth_code=' but could not read a value from it.")
+    return codes[0]
 
 
 def login(settings: Settings) -> str:
@@ -37,10 +56,13 @@ def login(settings: Settings) -> str:
     except Exception:
         pass
     print(
-        "\n2. After login you are redirected to your redirect URI. "
-        "Copy the value of `auth_code` from that URL.\n"
+        "\n2. Fyers then redirects to your redirect URI. That page will fail to load —\n"
+        "   that is expected, nothing is running there. Click the address bar,\n"
+        "   select the whole URL (Cmd+A), copy it (Cmd+C), and paste it below.\n"
+        "   Pasting just the auth_code works too.\n"
     )
-    auth_code = input("Paste auth_code here: ").strip()
+    auth_code = extract_auth_code(input("Paste the URL (or auth_code) here: "))
+    print(f"\nUsing auth_code {auth_code[:12]}…{auth_code[-8:]} ({len(auth_code)} chars)")
 
     session.set_token(auth_code)
     resp = session.generate_token()
