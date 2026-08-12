@@ -76,12 +76,30 @@ Should this trade be executed?"""
                 model=self.model,
                 max_tokens=2048,
                 system=SYSTEM_PROMPT,
-                output_config={"format": {"type": "json_schema", "schema": VERDICT_SCHEMA}},
+                output_config={
+                    "format": {"type": "json_schema", "schema": VERDICT_SCHEMA},
+                    # Thinking is on by default from Opus 5 onward and is billed as
+                    # output. Vetting one signal against a handful of indicators does
+                    # not need deep reasoning, so keep the depth (and the cost) low.
+                    "effort": "low",
+                },
                 messages=[{"role": "user", "content": prompt}],
             )
-            verdict = json.loads(response.content[0].text)
-        except (anthropic.APIError, json.JSONDecodeError, IndexError) as e:
-            log.warning("Claude review failed (%s) — falling back to raw signal", e)
+            # Find the text block rather than indexing content[0]: models that think
+            # put a thinking block first, so the verdict is not always at position 0.
+            verdict_json = next(
+                (b.text for b in response.content if getattr(b, "type", None) == "text"), None
+            )
+            if verdict_json is None:
+                raise ValueError(
+                    "no text block in response (blocks: "
+                    + ", ".join(getattr(b, "type", "?") for b in response.content) + ")"
+                )
+            verdict = json.loads(verdict_json)
+        except (anthropic.APIError, json.JSONDecodeError, ValueError,
+                AttributeError, KeyError, IndexError) as e:
+            log.warning("Claude review failed (%s: %s) — falling back to raw signal",
+                        type(e).__name__, e)
             return {"approve": True, "confidence": 0.5,
                     "reasoning": f"Claude unavailable ({type(e).__name__}); raw signal used"}
 
