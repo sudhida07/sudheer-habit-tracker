@@ -147,6 +147,18 @@ same network, and the computer must stay awake with the Terminal window open.
 
 ## Troubleshooting
 
+Before reading the table, ask the app what is wrong:
+
+```bash
+bash start.sh doctor
+```
+
+It checks the Python version, the dependencies, every key in `.env`, whether
+today's Fyers token is still valid, the market clock, and whether port 5050 is
+already taken — then lists what to fix, in order. It never needs the app to
+start successfully, and it masks secrets, so the output is safe to paste when
+asking for help.
+
 | What you see | Fix |
 |---|---|
 | `zsh: command not found: python` | macOS only ships `python3`. Use `bash start.sh <command>`, which picks the right one. |
@@ -155,7 +167,7 @@ same network, and the computer must stay awake with the Terminal window open.
 | `bash: start.sh: No such file or directory` | Same cause — you are not inside `algo-trading`, or you are on the wrong branch. |
 | `No .env file found` | Run `bash setup.sh`, or `cp .env.example .env` and fill it in. |
 | `Still missing in .env: ...` | The named keys are still placeholders — paste the real values from myapi.fyers.in. |
-| Safari: "Can't Connect to the Server" | The server is not running. Start it with `bash start.sh demo` and keep that window open. |
+| Safari or Chrome: "Can't connect" / `ERR_CONNECTION_REFUSED` on 127.0.0.1:5050 | Nothing is listening on that port — the server is not running, or it exited before starting. The browser cannot tell you why; run `bash start.sh doctor` and read Terminal. |
 | iPad cannot load the page | Use the `192.168.x.x` address the app prints, not `127.0.0.1` — that one only means "this device". |
 | `Address already in use` | An older copy is still running. Close it, or start on another port. |
 
@@ -227,11 +239,12 @@ SDK). If you want it private, enable Firebase Auth and tighten the rule in
 ```
 setup.sh                   one-time install (venv + dependencies + .env)
 start.sh                   run a command without activating the venv yourself
-run.py                     CLI: demo / auth / testtrade / trade / dashboard / all
+run.py                     CLI: doctor / demo / auth / testtrade / trade / dashboard / all
 config.yaml                capital, targets, risk, watchlist, session times
 fyers_algo/
   auth.py                  Fyers OAuth login + token storage
   demo.py                  sample trading day for `start.sh demo`
+  doctor.py                setup self-check for `start.sh doctor`
   data.py                  quotes and candles
   strategy.py              EMA/RSI/VWAP signal generation
   claude_analyst.py        Claude reviews each trade (structured JSON verdict)

@@ -2,6 +2,7 @@
 """Fyers algo trading app — entry point.
 
 Usage:
+  python3 run.py doctor     # check the setup and say what is missing
   python3 run.py demo       # sample dashboard, no API keys needed — start here
   python3 run.py auth       # daily Fyers login (saves access token)
   python3 run.py testtrade  # force one paper trade now, then run normally
@@ -25,7 +26,7 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
-COMMANDS = ("demo", "auth", "testtrade", "trade", "dashboard", "all")
+COMMANDS = ("doctor", "demo", "auth", "testtrade", "trade", "dashboard", "all")
 
 
 def check_env(settings):
@@ -54,6 +55,11 @@ def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "all"
     if cmd not in COMMANDS:
         raise SystemExit(__doc__)
+
+    if cmd == "doctor":
+        from fyers_algo import doctor
+        doctor.run()
+        return
 
     from fyers_algo.dashboard import run_dashboard
 
