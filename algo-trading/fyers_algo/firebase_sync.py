@@ -13,9 +13,14 @@ log = logging.getLogger("firebase_sync")
 
 
 class FirebaseSync:
-    def __init__(self, service_account_path: str):
+    def __init__(self, service_account_path: str, document: str = "algo/dashboard"):
         import firebase_admin
         from firebase_admin import credentials, firestore
+
+        collection, _, doc = document.partition("/")
+        if not collection or not doc:
+            raise ValueError(f"firebase.document must be 'collection/doc', got {document!r}")
+        self.collection, self.doc = collection, doc
 
         cred = credentials.Certificate(service_account_path)
         try:
@@ -23,11 +28,11 @@ class FirebaseSync:
         except ValueError:
             app = firebase_admin.initialize_app(cred)
         self.db = firestore.client(app)
-        log.info("Firebase sync enabled (project %s)", cred.project_id)
+        log.info("Firebase sync enabled (project %s, document %s)", cred.project_id, document)
 
     def publish(self, state: dict):
         try:
-            self.db.collection("algo").document("dashboard").set(state)
+            self.db.collection(self.collection).document(self.doc).set(state)
         except Exception as e:
             log.warning("Firestore publish failed: %s", e)
 
@@ -39,7 +44,9 @@ def make_sync(settings):
         return None
     path = fb.get("service_account", "serviceAccount.json")
     try:
-        return FirebaseSync(path)
+        # Each engine needs its own document — several writing one path would
+        # overwrite each other's state on every cycle.
+        return FirebaseSync(path, fb.get("document", "algo/dashboard"))
     except Exception as e:
         log.error("Firebase sync disabled — could not initialize (%s). "
                   "Check firebase.service_account in config.yaml.", e)

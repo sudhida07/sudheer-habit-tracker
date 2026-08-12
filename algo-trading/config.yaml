@@ -50,6 +50,10 @@ claude:
   model: claude-opus-5
   min_confidence: 0.6      # skip trades Claude scores below this
 
+dashboard:
+  port: 5050               # give each install its own port when several run on one machine
+
 firebase:
   enabled: false           # push live state to Firestore for the hosted dashboard
   service_account: serviceAccount.json   # Firebase service-account key (git-ignored)
+  document: algo/dashboard # give each install its own document, or they overwrite each other

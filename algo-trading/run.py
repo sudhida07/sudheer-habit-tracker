@@ -29,6 +29,11 @@ logging.basicConfig(
 COMMANDS = ("doctor", "demo", "auth", "testtrade", "trade", "dashboard", "all")
 
 
+def dashboard_port(settings) -> int:
+    """Port for this install's dashboard — must differ when several run on one machine."""
+    return int(settings.raw.get("dashboard", {}).get("port", 5050))
+
+
 def check_env(settings):
     """Fail with instructions rather than a traceback when credentials are missing."""
     if not (ROOT / ".env").exists():
@@ -63,18 +68,19 @@ def main():
 
     from fyers_algo.dashboard import run_dashboard
 
+    settings = load_settings()
+
     if cmd == "demo":
         from fyers_algo import demo
         demo.seed()
         print("\n  Demo mode — sample trades, no broker connected.")
-        run_dashboard()
+        run_dashboard(port=dashboard_port(settings))
         return
 
-    settings = load_settings()
     store.init_db()
 
     if cmd == "dashboard":
-        run_dashboard()
+        run_dashboard(port=dashboard_port(settings))
         return
 
     check_env(settings)
@@ -116,7 +122,7 @@ def main():
         engine.run()
     else:  # all, testtrade
         threading.Thread(target=engine.run, daemon=True).start()
-        run_dashboard()
+        run_dashboard(port=dashboard_port(settings))
 
 
 if __name__ == "__main__":
