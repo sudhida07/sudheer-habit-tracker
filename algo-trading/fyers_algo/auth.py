@@ -30,13 +30,27 @@ def extract_auth_code(pasted: str) -> str:
     URL as-is and pull the code out here instead.
     """
     pasted = pasted.strip().strip('"').strip("'")
-    if "auth_code=" not in pasted:
-        return pasted
-    query = urlparse(pasted).query or pasted.split("?", 1)[-1]
-    codes = parse_qs(query).get("auth_code")
-    if not codes or not codes[0]:
-        raise RuntimeError("Found 'auth_code=' but could not read a value from it.")
-    return codes[0]
+    if "auth_code=" in pasted:
+        query = urlparse(pasted).query or pasted.split("?", 1)[-1]
+        codes = parse_qs(query).get("auth_code")
+        if not codes or not codes[0]:
+            raise SystemExit("\nFound 'auth_code=' in that, but no value after it. "
+                             "Copy the whole URL again.\n")
+        pasted = codes[0]
+
+    # An auth_code is a JWT: three dot-separated segments. Checking here turns a
+    # mis-paste into one clear line instead of an opaque token-exchange failure.
+    parts = pasted.split(".")
+    if len(parts) != 3 or not all(parts) or len(pasted) < 100:
+        preview = pasted[:60] + ("…" if len(pasted) > 60 else "")
+        raise SystemExit(
+            f"\nThat is not an auth_code. It should be a long token with two dots "
+            f"in it.\n\nYou pasted ({len(pasted)} chars):\n  {preview or '(nothing)'}\n\n"
+            "Copy the URL from your browser's address bar after logging in to Fyers —\n"
+            "click the address bar, Cmd+A, Cmd+C — and paste that here.\n"
+            "Do not paste Terminal commands at this prompt.\n"
+        )
+    return pasted
 
 
 def login(settings: Settings) -> str:
@@ -67,7 +81,14 @@ def login(settings: Settings) -> str:
     session.set_token(auth_code)
     resp = session.generate_token()
     if resp.get("s") != "ok" or "access_token" not in resp:
-        raise RuntimeError(f"Token exchange failed: {resp}")
+        raise SystemExit(
+            f"\nFyers rejected the code: {resp.get('message') or resp}\n\n"
+            "Usual causes:\n"
+            "  · the code was already used — each one works once, so log in again\n"
+            "  · more than a few minutes passed between login and pasting\n"
+            f"  · FYERS_REDIRECT_URI in .env ({settings.fyers_redirect_uri}) differs\n"
+            "    from the redirect URI registered at myapi.fyers.in\n"
+        )
 
     token = resp["access_token"]
     TOKEN_FILE.write_text(json.dumps({"access_token": token, "created_at": time.time()}))
